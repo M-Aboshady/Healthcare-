@@ -1,4 +1,4 @@
-st.set_page_config(page_title="ER Claim Pre-Approval", layout="wide")
+import streamlit as st
 # --- FILE PATHS ---
 # 🚨 IMPORTANT: Update these paths to your file locations.
 EXCEL_FILE_PATH = "/kaggle/input/er-dataset-1/synthetic_uae_er_insurance_data.xlsx"
@@ -87,7 +87,7 @@ def predict_from_user_input(model, encoders, features, user_input):
     return prediction, f"Confidence: {confidence:.2f}"
 
 # --- STREAMLIT UI ---
-
+st.set_page_config(page_title="ER Claim Pre-Approval", layout="wide")
 st.title("🚑 ER Claim Pre-Approval Assistant")
 st.markdown("---")
 
@@ -170,3 +170,4 @@ if model is not None and encoders is not None:
 else:
 
     st.info("Please ensure your historical data file is in place to train the model.")
+
