@@ -1,4 +1,4 @@
-!pip install streamlit
+
 import streamlit as st
 import pandas as pd
 import joblib
@@ -177,5 +177,6 @@ if model is not None and encoders is not None:
 else:
 
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
