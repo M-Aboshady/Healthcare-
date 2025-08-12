@@ -48,7 +48,7 @@ def train_model(df):
     y = df_cleaned[target]
     
     # Mapping the target variable
-    y_encoded = y.map({'Approved': 0, 'Rejected': 1, 'Might Be Approved': 2})
+    y_encoded = y.map({'Approved': 0, 'Rejected': 1, 'Might_Be_Approved': 2})
 
     model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X, y_encoded)
@@ -72,7 +72,7 @@ def predict_from_user_input(model, encoders, features, user_input):
     for col, encoder in encoders.items():
         # Handle new, unseen categories gracefully
         if user_input[col] not in encoder.classes_:
-            return "Might Be Approved", "Reason: Unseen category in historical data. Manual review required."
+            return "Might_Be_Approved", "Reason: Unseen category in historical data. Manual review required."
         input_df[f'{col}_encoded'] = encoder.transform([user_input[col]])
 
     # Reorder columns to match the trained model's feature order
@@ -83,7 +83,7 @@ def predict_from_user_input(model, encoders, features, user_input):
     predicted_class_idx = model.predict(input_df)[0]
     
     # Map back to readable labels
-    class_labels = ['Approved', 'Rejected', 'Might Be Approved']
+    class_labels = ['Approved', 'Rejected', 'Might_Be_Approved']
     prediction = class_labels[predicted_class_idx]
     confidence = prediction_proba[predicted_class_idx]
 
@@ -164,7 +164,7 @@ if model is not None and encoders is not None:
         if prediction == 'Approved':
             st.success(f"**Prediction:** {prediction} ✅")
             st.write(f"Reason: {reason}")
-        elif prediction == 'Might Be Approved':
+        elif prediction == 'Might_Be_Approved':
             st.warning(f"**Prediction:** {prediction} ⚠️")
             st.write(f"Reason: {reason}")
         else:
@@ -173,6 +173,7 @@ if model is not None and encoders is not None:
 else:
 
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
 
