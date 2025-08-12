@@ -8,7 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 import os
 # --- FILE PATHS ---
 # 🚨 IMPORTANT: Update these paths to your file locations.
-EXCEL_FILE_PATH = "synthetic_uae_er_insurance_data.xlsx"
+EXCEL_FILE_PATH = "preprocessed_uae_er_insurance_data.xlsx"
 MODEL_PATH = "er_claim_model.joblib"
 ENCODERS_PATH = "er_encoders.joblib"
 FEATURES_PATH = "er_model_features.joblib"
@@ -173,6 +173,7 @@ if model is not None and encoders is not None:
 else:
 
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
 
