@@ -87,7 +87,6 @@ def train_model(df):
     joblib.dump(features, FEATURES_PATH)
     st.success("✅ Machine Learning model and encoders trained and saved successfully!")
     return model, encoders, features
-
 def predict_from_user_input(model, encoders, features, user_input):
     """
     Predicts the claim status for a single user input by preprocessing the data entry.
@@ -100,13 +99,8 @@ def predict_from_user_input(model, encoders, features, user_input):
     for col in categorical_cols:
         if col in encoders:
             le = encoders[col]
-            # Handle unseen categories by checking if the category exists in the encoder's classes
-            if user_input[col] not in le.classes_:
-                # If a new category appears, you can't predict.
-                # A good strategy is to return a default value or flag it for manual review.
-                # For this example, we will simply return a default 'Might Be Approved'.
-                return "Might Be Approved", "Reason: New, unseen category for " + col + ". Manual review required."
-            
+            # Use the LabelEncoder to transform the user's input for the column.
+            # This will raise an error if an unseen category is encountered.
             input_df[f'{col}_encoded'] = le.transform([user_input[col]])
             # Drop the original categorical column after encoding
             input_df = input_df.drop(columns=[col])
@@ -125,6 +119,9 @@ def predict_from_user_input(model, encoders, features, user_input):
     confidence = prediction_proba[predicted_class_idx]
 
     return prediction, f"Confidence: {confidence:.2f}"
+
+    
+  
 # --- STREAMLIT UI ---
 st.set_page_config(page_title="ER Claim Pre-Approval", layout="wide")
 st.title("🚑 ER Claim Pre-Approval Assistant")
@@ -208,6 +205,7 @@ if model is not None and encoders is not None:
             st.write(f"Reason: {reason}")
 else:
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
 
