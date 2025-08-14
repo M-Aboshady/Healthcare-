@@ -30,7 +30,7 @@ def train_model(df):
         return None
 
     # Define all features and the target variable from the prompt
-    features = ['Age', 'Gender', 'Systolic_BP', 'Diastolic_BP', 'Heart_Rate', 'Temperature', 'Respiration_Rate', 'CPT_Code', 'ICD_Code', 'Insurance_Company', 'Insurance_Plan']
+    features = ['Age', 'Gender', 'Systolic_BP', 'Diastolic_BP', 'Heart_Rate', 'Temperature', 'Respiratory_Rate', 'CPT_Code', 'ICD_Code', 'Insurance_Company', 'Insurance_Plan']
     target = 'Claim_Status'
 
     df_cleaned = df.dropna(subset=features + [target])
@@ -173,6 +173,7 @@ if model is not None and encoders is not None:
 else:
 
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
 
