@@ -95,12 +95,7 @@ def predict_from_user_input(model, encoders, features, user_input):
     # Create a DataFrame from the single user input
     input_df = pd.DataFrame([user_input])
 
-    # Convert blood pressure string to numerical values
-    bp_parts = input_df['Blood_Pressure'].iloc[0].split('/')
-    input_df['Systolic_BP'] = float(bp_parts[0])
-    input_df['Diastolic_BP'] = float(bp_parts[1])
-    input_df = input_df.drop('Blood_Pressure', axis=1)
-
+    
     # Preprocess categorical features using the saved encoders
     for col, encoder in encoders.items():
         # Handle new, unseen categories gracefully
@@ -205,6 +200,7 @@ if model is not None and encoders is not None:
             st.write(f"Reason: {reason}")
 else:
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
 
