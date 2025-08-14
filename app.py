@@ -97,11 +97,11 @@ def predict_from_user_input(model, encoders, features, user_input):
 
     
     # Preprocess categorical features using the saved encoders
-    for col, encoder in encoders.items():
+    #for col, encoder in encoders.items():
         # Handle new, unseen categories gracefully
-        if user_input[col] not in encoder.classes_:
-            return "Might Be Approved", "Reason: Unseen category in historical data. Manual review required."
-        input_df[f'{col}_encoded'] = encoder.transform([user_input[col]])
+        #if user_input[col] not in encoder.classes_:
+            #return "Might Be Approved", "Reason: Unseen category in historical data. Manual review required."
+        #input_df[f'{col}_encoded'] = encoder.transform([user_input[col]])
 
     # Reorder columns to match the trained model's feature order
     input_df = input_df[features]
@@ -200,6 +200,7 @@ if model is not None and encoders is not None:
             st.write(f"Reason: {reason}")
 else:
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
 
