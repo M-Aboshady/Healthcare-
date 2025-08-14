@@ -1,5 +1,11 @@
 
-
+import streamlit as st
+import pandas as pd
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
+import os
 # --- FILE PATHS ---
 # 🚨 IMPORTANT: Update these paths to your file locations.
 EXCEL_FILE_PATH = "/kaggle/input/er-app/synthetic_uae_er_insurance_5000_balanced_clean.xlsx"
@@ -199,6 +205,7 @@ if model is not None and encoders is not None:
             st.write(f"Reason: {reason}")
 else:
     st.info("Please ensure your historical data file is in place to train the model.")
+
 
 
 
