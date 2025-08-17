@@ -1,222 +1,167 @@
-
 import streamlit as st
 import pandas as pd
 import joblib
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
-import os
+import numpy as np
+
 # --- FILE PATHS ---
-# 🚨 IMPORTANT: Update these paths to your file locations.
-EXCEL_FILE_PATH = "synthetic_uae_er_insurance_5000_balanced_clean.xlsx"
+file_path = "/kaggle/input/er-csv/synthetic_uae_er_insurance_5000_balanced_clean.csv"
 MODEL_PATH = "er_claim_model.joblib"
 ENCODERS_PATH = "er_encoders.joblib"
 FEATURES_PATH = "er_model_features.joblib"
 
-def load_data(file_path):
-    """Loads and cleans the Excel data for training."""
-    try:
-        df = pd.read_excel(file_path)
-        df.columns = [col.strip().replace(' ', '_') for col in df.columns]
-        return df
-    except FileNotFoundError:
-        st.error(f"Error: The file '{file_path}' was not found. Please ensure the path is correct.")
-        return None
+# --- MAPPING FOR TARGET VARIABLE ---
+CLAIM_STATUS_MAP = {'Approved': 0, 'Rejected': 1, 'Might_be_Approved': 2}
+CLASS_LABELS = ['Approved', 'Rejected', 'Might_be_Approved']
 
-def train_model(df):
-    """Trains a Random Forest Classifier and saves the model, encoders, and feature list."""
-    if df is None or df.empty:
-        st.warning("Cannot train model: data is empty or not loaded.")
-        return None
 
-    # Define all features and the target variable from the prompt
-    features = ['Age', 'Gender', 'Systolic_BP', 'Diastolic_BP', 'Heart_Rate', 'Temperature', 'Respiratory_Rate', 'CPT_Code', 'ICD_Code', 'Insurance_Company', 'Insurance_Plan']
+def load_preprocess_and_train_model(file_path):
+    """
+    Loads the CSV data, preprocesses it (encodes categorical features and target),
+    trains a RandomForestClassifier, and saves the model, encoders, and feature list.
+    """
+
+    # Step 1 - Load Data
+    df = pd.read_csv(file_path)
+    st.write("📥 Data loaded:", df.shape)
+    print("📥 Data loaded:", df.shape)
+
+    # Step 2 - Define features
+    numerical_features = ['Age', 'Systolic_BP', 'Diastolic_BP', 
+                          'Heart_Rate', 'Temperature', 'Respiratory_Rate']
+    categorical_features = ['Gender', 'CPT_Code', 'ICD_Code', 
+                            'Insurance_Company', 'Insurance_Plan']
     target = 'Claim_Status'
+    all_features = numerical_features + categorical_features
 
-    df_cleaned = df.dropna(subset=features + [target])
+    st.write("🔑 Features defined")
+    print("🔑 Features defined")
 
+    # Step 3 - Copy data for encoding
+    df_encoded = df.copy()
     encoders = {}
-    for col in ['Gender', 'CPT_Code', 'ICD_Code', 'Insurance_Company', 'Insurance_Plan']:
-        if col in df_cleaned.columns:
-            le = LabelEncoder()
-            df_cleaned[f'{col}_encoded'] = le.fit_transform(df_cleaned[col])
-            encoders[col] = le
-            features.append(f'{col}_encoded')
-            features.remove(col) # Use encoded features for the model
 
-    X = df_cleaned[features]
-    y = df_cleaned[target]
-    
-    # Mapping the target variable
-    y_encoded = y.map({'Approved': 0, 'Rejected': 1, 'Might Be Approved': 2})
+    # Step 4 - Encode categorical features
+    for col in categorical_features:
+        le = LabelEncoder()
+        df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
+        encoders[col] = le
+        st.write(f"✅ Encoded {col}")
+        print(f"✅ Encoded {col}")
 
-    # Assuming 'y_encoded' is your target variable
-    import numpy as np
+    # Step 5 - Encode target
+    y_encoded = df_encoded[target].map(CLAIM_STATUS_MAP)
+    if y_encoded.isna().sum() > 0:
+        raise ValueError("❌ Found NaN in Claim_Status mapping! Check categories.")
 
-# Check for NaN values
-    if np.isnan(y_encoded).any():
-        print("y_encoded contains NaN values.")
-        # You can also see where they are
-        nan_indices = np.where(np.isnan(y_encoded))
-        print(f"NaN values found at indices: {nan_indices}")
+    y_encoded = y_encoded.astype(int)
+    st.write("🎯 Target encoded, unique classes:", y_encoded.unique())
+    print("🎯 Target encoded, unique classes:", y_encoded.unique())
 
-# Check for infinite values
-    if np.isinf(y_encoded).any():
-        print("y_encoded contains infinite values.")
-        
+    # Step 6 - Define X and y
+    X = df_encoded[all_features]
+    y = y_encoded
+    st.write("📊 Feature matrix shape:", X.shape, " Target shape:", y.shape)
+    print("📊 Feature matrix shape:", X.shape, " Target shape:", y.shape)
 
+    # Step 7 - Train model
     model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    st.write("🤖 Model trained successfully")
+    print("🤖 Model trained successfully")
 
-
-    df_combined = pd.DataFrame(X, columns=features)
-    df_combined['target'] = y_encoded
-
-    # Drop rows with NaN values from the combined DataFrame
-    df_cleaned = df_combined.dropna()
-
-    # Separate X and y again
-    X_cleaned = df_cleaned.drop('target', axis=1)
-    y_cleaned = df_cleaned['target']
-
-
-    model.fit(X_cleaned, y_cleaned)
-    
-
+    # Step 8 - Save artifacts
     joblib.dump(model, MODEL_PATH)
     joblib.dump(encoders, ENCODERS_PATH)
-    joblib.dump(features, FEATURES_PATH)
-    st.success("✅ Machine Learning model and encoders trained and saved successfully!")
-    return model, encoders, features
-def predict_from_user_input(model, encoders, features, user_input):
-    """
-    Predicts the claim status for a single user input by preprocessing the data entry.
-    """
-    # Create a DataFrame from the single user input
-    input_df = pd.DataFrame([user_input])
+    joblib.dump(all_features, FEATURES_PATH)
+    st.success("✅ Model, encoders, and features saved")
+    print("✅ Model, encoders, and features saved")
 
-    # Preprocess categorical features using the saved encoders
-    categorical_cols = ['Gender', 'CPT_Code', 'ICD_Code', 'Insurance_Company', 'Insurance_Plan']
-    for col in categorical_cols:
-        if col in encoders:
-            le = encoders[col]
-            # Use the LabelEncoder to transform the user's input for the column.
-            # This will raise an error if an unseen category is encountered.
-            input_df[f'{col}_encoded'] = le.transform([user_input[col]])
-            # Drop the original categorical column after encoding
-            input_df = input_df.drop(columns=[col])
+    return model, encoders, all_features, X, y
 
-    # Reorder columns to match the trained model's feature order.
-    # We use the features list that was saved from the training process.
-    input_df = input_df[features]
 
-    # Make the prediction
-    prediction_proba = model.predict_proba(input_df)[0]
-    predicted_class_idx = model.predict(input_df)[0]
+# -------------------- MAIN EXECUTION --------------------
+if __name__ == "__main__":
+    model, encoders, all_features, X, y = load_preprocess_and_train_model(file_path)
+    print("🏁 Done. Model trained on", X.shape[0], "rows and", X.shape[1], "features.")
     
-    # Map back to readable labels
-    class_labels = ['Approved', 'Rejected', 'Might Be Approved']
-    prediction = class_labels[predicted_class_idx]
-    confidence = prediction_proba[predicted_class_idx]
 
-    return prediction, f"Confidence: {confidence:.2f}"
-
-    
-  
-# --- STREAMLIT UI ---
-st.set_page_config(page_title="ER Claim Pre-Approval", layout="wide")
-st.title("🚑 ER Claim Pre-Approval Assistant")
-st.markdown("---")
-
-# Load data and train/load model
-df_claims = load_data(EXCEL_FILE_PATH)
-model, encoders, features = None, None, None
-
-if df_claims is not None and not df_claims.empty:
-    if os.path.exists(MODEL_PATH) and os.path.exists(ENCODERS_PATH) and os.path.exists(FEATURES_PATH):
-        st.info("Loading existing model, encoders, and features...")
-        model = joblib.load(MODEL_PATH)
-        encoders = joblib.load(ENCODERS_PATH)
-        features = joblib.load(FEATURES_PATH)
+# --- SAFE ENCODER FUNCTION ---
+def safe_transform(le, value):
+    """Safely transform unseen values into 'unknown' if possible."""
+    if value in le.classes_:
+        return le.transform([value])[0]
     else:
-        st.info("Model not found. Training a new model now...")
-        model, encoders, features = train_model(df_claims)
+        # Extend encoder with "Unknown"
+        le_classes = list(le.classes_)
+        if "Unknown" not in le_classes:
+            le_classes.append("Unknown")
+            le.classes_ = np.array(le_classes)
+        return le.transform(["Unknown"])[0]
 
-if model is not None and encoders is not None:
-    # --- Input Sections ---
-    col1, col2 = st.columns([1, 1])
+# --- PREDICTION FUNCTION ---
+def predict_claim(input_data):
+    model = joblib.load(MODEL_PATH)
+    encoders = joblib.load(ENCODERS_PATH)
+    all_features = joblib.load(FEATURES_PATH)
 
-    with col1:
-        st.subheader("1️⃣ Patient Demographics")
-        age = st.number_input("Age", min_value=0, max_value=120, value=30)
-        gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+    # Convert to dataframe
+    df_input = pd.DataFrame([input_data])
 
-    with col2:
-        st.subheader("2️⃣ Vital Signs")
-        st.markdown("Enter the patient's vital signs.")
-        heart_rate = st.number_input("Heart Rate (bpm)", min_value=0, max_value=250, value=80)
-        bp_systolic = st.number_input("Systolic BP (mmHg)", min_value=0, max_value=250, value=120)
-        bp_diastolic = st.number_input("Diastolic BP (mmHg)", min_value=0, max_value=200, value=80)
-        temperature = st.number_input("Temperature (°C)", min_value=30.0, max_value=45.0, value=37.0)
-        respiration_rate = st.number_input("Respiratory_Rate (breaths/min)", min_value=0, max_value=60, value=18)
-    
-    # CPT and ICD codes section
-    st.markdown("---")
-    st.subheader("3️⃣ Claim Details")
-    col3, col4, col5 = st.columns(3)
-    with col3:
-        cpt_code = st.text_input("CPT Procedure Code", "99285")
-    with col4:
-        icd_code = st.text_input("ICD Diagnosis Code", "R10.9")
-    with col5:
-        insurance_company = st.text_input("Insurance Company", "Daman")
-        insurance_plan = st.text_input("Insurance Plan", "Basic")
+    # Encode categorical inputs safely
+    for col, le in encoders.items():
+        df_input[col] = df_input[col].apply(lambda x: safe_transform(le, str(x)))
 
-    # Prediction button
-    submitted = st.button("Get Prediction")
+    X_input = df_input[all_features]
+    prediction = model.predict(X_input)[0]
+    return CLASS_LABELS[prediction]
 
-    if submitted:
-        user_input = {
-            'Age': age,
-            'Gender': gender,
-            'Systolic_BP': bp_systolic,
-            'Diastolic_BP': bp_diastolic,
-            'Heart_Rate': heart_rate,
-            'Temperature': temperature,
-            'Respiratory_Rate': respiration_rate,
-            'CPT_Code': cpt_code,
-            'ICD_Code': icd_code,
-            'Insurance_Company': insurance_company,
-            'Insurance_Plan': insurance_plan
+# --- STREAMLIT APP ---
+st.set_page_config(page_title="UAE ER Claim Predictor", layout="wide")
+st.title("🏥 UAE ER Claim Approval Prediction App")
+
+# Layout split into 3 columns
+col1, col2, col3 = st.columns([1,1,1])
+
+# --- SECTION 1: VITAL SIGNS ---
+with col1:
+    st.header("🫀 Vital Signs")
+    Age = st.number_input("Age (years)", min_value=0.0, max_value=120.0, value=30.0, step=0.1)
+    Systolic_BP = st.number_input("Systolic BP (mmHg)", min_value=50.0, max_value=250.0, value=120.0, step=0.1)
+    Diastolic_BP = st.number_input("Diastolic BP (mmHg)", min_value=30.0, max_value=150.0, value=80.0, step=0.1)
+    Heart_Rate = st.number_input("Heart Rate (bpm)", min_value=30.0, max_value=200.0, value=75.0, step=0.1)
+    Temperature = st.number_input("Temperature (°C)", min_value=30.0, max_value=45.0, value=37.0, step=0.1)
+    Respiratory_Rate = st.number_input("Respiratory Rate (/min)", min_value=5.0, max_value=60.0, value=18.0, step=0.1)
+
+# --- SECTION 2: DEMOGRAPHICS & INSURANCE ---
+with col2:
+    st.header("👤 Demographics & Insurance")
+    Gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+    Insurance_Company = st.text_input("Insurance Company", "Daman")
+    Insurance_Plan = st.text_input("Insurance Plan", "Basic")
+    ICD_Code = st.text_input("ICD Code", "S72.001A")
+
+# --- SECTION 3: CPT & PREDICTION ---
+with col3:
+    st.header("📝 CPT & Prediction")
+    CPT_Code = st.text_input("CPT Code", "99283")
+
+    if st.button("🔮 Predict Claim Status"):
+        input_data = {
+            "Age": Age,
+            "Gender": Gender,
+            "Systolic_BP": Systolic_BP,
+            "Diastolic_BP": Diastolic_BP,
+            "Heart_Rate": Heart_Rate,
+            "Temperature": Temperature,
+            "Respiratory_Rate": Respiratory_Rate,
+            "CPT_Code": CPT_Code,
+            "ICD_Code": ICD_Code,
+            "Insurance_Company": Insurance_Company,
+            "Insurance_Plan": Insurance_Plan
         }
-        
-        st.markdown("---")
-        st.header("4️⃣ Prediction Result")
-        st.spinner("Predicting claim status...")
-        prediction, reason = predict_from_user_input(model, encoders, features, user_input)
-        
-        if prediction == 'Approved':
-            st.success(f"**Prediction:** {prediction} ✅")
-            st.write(f"Reason: {reason}")
-        elif prediction == 'Might Be Approved':
-            st.warning(f"**Prediction:** {prediction} ⚠️")
-            st.write(f"Reason: {reason}")
-        else:
-            st.error(f"**Prediction:** {prediction} ❌")
-            st.write(f"Reason: {reason}")
-else:
-    st.info("Please ensure your historical data file is in place to train the model.")
-
-
-
-
-
-
-
-
-
-
-
-
-
+        result = predict_claim(input_data)
+        st.success(f"📌 Predicted Claim Status: **{result}**")
 
 
