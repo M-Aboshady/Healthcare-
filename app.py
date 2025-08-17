@@ -6,7 +6,7 @@ from sklearn.preprocessing import LabelEncoder
 import numpy as np
 
 # --- FILE PATHS ---
-file_path = "/kaggle/input/er-csv/synthetic_uae_er_insurance_5000_balanced_clean.csv"
+file_path = "synthetic_uae_er_insurance_5000_balanced_clean.csv"
 MODEL_PATH = "er_claim_model.joblib"
 ENCODERS_PATH = "er_encoders.joblib"
 FEATURES_PATH = "er_model_features.joblib"
@@ -163,5 +163,6 @@ with col3:
         }
         result = predict_claim(input_data)
         st.success(f"📌 Predicted Claim Status: **{result}**")
+
 
 
