@@ -15,8 +15,8 @@ FEATURES_PATH = "er_model_features_with_nlp.joblib"
 VECTORIZER_PATH = "er_notes_vectorizer.joblib"
 
 # --- MAPPING FOR TARGET VARIABLE ---
-CLAIM_STATUS_MAP = {'Approved': 0, 'Rejected': 1, 'Might_be_Approved': 2}
-CLASS_LABELS = ['Approved', 'Rejected', 'Might_be_Approved']
+CLAIM_STATUS_MAP = {'Approved': 0, 'Rejected': 1}
+CLASS_LABELS = ['Approved', 'Rejected']
 
 def load_preprocess_and_train_model(file_path):
     # Step 1 - Load Data
@@ -150,5 +150,6 @@ with col3:
 if __name__ == "__main__":
     model, encoders, all_features, vectorizer, X, y = load_preprocess_and_train_model(file_path)
     print("🏁 Done. Model trained on", X.shape[0], "rows and", X.shape[1], "features.")
+
 
 
