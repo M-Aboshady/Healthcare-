@@ -22,6 +22,7 @@ def load_preprocess_and_train_model(file_path):
     # Step 1 - Load Data
     df = pd.read_csv(file_path)
     st.write("📥 Data loaded:", df.shape)
+    print("📥 Data loaded:", df.shape)
 
     # Step 2 - Define features
     numerical_features = ['Age', 'Systolic_BP', 'Diastolic_BP', 
@@ -39,32 +40,35 @@ def load_preprocess_and_train_model(file_path):
         le = LabelEncoder()
         df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
         encoders[col] = le
+        print(f"✅ Encoded {col}")
 
     # Step 4 - Encode target
     y_encoded = df_encoded[target].map(CLAIM_STATUS_MAP).astype(int)
+    print("🎯 Target encoded, unique classes:", y_encoded.unique())
 
     # Step 5 - Encode text (TF-IDF)
-    vectorizer = TfidfVectorizer(max_features=500)  # limit features for speed
+    vectorizer = TfidfVectorizer(max_features=500)
     X_text = vectorizer.fit_transform(df_encoded[text_feature].astype(str))
 
     # Step 6 - Structured features
     X_structured = df_encoded[numerical_features + categorical_features]
 
     # Step 7 - Combine structured + text
-    from scipy.sparse import hstack
     X_combined = hstack([X_structured.values, X_text])
 
     # Step 8 - Train model
     model = RandomForestClassifier(n_estimators=200, random_state=42)
     model.fit(X_combined, y_encoded)
+    print("🤖 Model trained successfully")
 
     # Step 9 - Save artifacts
     joblib.dump(model, MODEL_PATH)
     joblib.dump(encoders, ENCODERS_PATH)
     joblib.dump(all_features, FEATURES_PATH)
     joblib.dump(vectorizer, VECTORIZER_PATH)
+    print("✅ Model, encoders, vectorizer, and features saved")
 
-    return model, encoders, all_features, vectorizer
+    return model, encoders, all_features, vectorizer, X_combined, y_encoded
 
 # --- SAFE ENCODER FUNCTION ---
 def safe_transform(le, value):
@@ -141,4 +145,10 @@ with col3:
         }
         result = predict_claim(input_data, Clinical_Notes)
         st.success(f"📌 Predicted Claim Status: **{result}**")
+
+# -------------------- MAIN EXECUTION --------------------
+if __name__ == "__main__":
+    model, encoders, all_features, vectorizer, X, y = load_preprocess_and_train_model(file_path)
+    print("🏁 Done. Model trained on", X.shape[0], "rows and", X.shape[1], "features.")
+
 
