@@ -141,3 +141,4 @@ with col3:
         }
         result = predict_claim(input_data, Clinical_Notes)
         st.success(f"📌 Predicted Claim Status: **{result}**")
+
