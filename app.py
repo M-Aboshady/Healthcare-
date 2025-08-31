@@ -27,7 +27,7 @@ from gensim.models import Word2Vec
 from tensorflow.keras import backend as K
 
 # --- FILE PATHS ---
-file_path = "/kaggle/input/balanced-34/synthetic_claims_uae_capitalized_3.csv"
+file_path = "synthetic_claims_uae_capitalized_3.csv"
 MODEL_PATH = "er_claim_model_w2v.h5"
 ENCODERS_PATH = "er_encoders_w2v.joblib"
 TOKENIZER_PATH = "er_notes_tokenizer_w2v.joblib"
@@ -312,6 +312,7 @@ if submitted:
         st.warning("Prediction could not be completed. Please check the logs.")
     else:
         st.success(f"The model predicts the claim status is: **{prediction}**")
+
 
 
 
