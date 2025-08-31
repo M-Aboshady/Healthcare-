@@ -256,63 +256,80 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An error occurred during training or evaluation: {e}")
 
-# --- STREAMLIT APP LAYOUT ---
-st.set_page_config(page_title="ER Claim Prediction App", layout="wide")
-st.title("🏥 Emergency Room Claim Status Prediction")
-st.markdown("Enter the patient's vitals and clinical notes to predict if their claim will be **Approved** or **Rejected**.")
+ # --- STREAMLIT APP LAYOUT ---
+    st.set_page_config(page_title="ER Claim Prediction App", layout="wide")
+    st.title("🏥 Emergency Room Claim Status Prediction")
+    st.markdown("Enter the patient's vitals and clinical notes to predict if their claim will be **Approved** or **Rejected**.")
 
-# Input fields for the user
-with st.form("claim_form"):
-    st.header("Patient Vitals & Demographics")
-    col1, col2 = st.columns(2)
-    with col1:
-        age = st.number_input("Age", min_value=0, max_value=120, value=30)
-        gender = st.selectbox("Gender", ["Male", "Female"])
-        heart_rate = st.number_input("Heart Rate", min_value=0.0, value=75.0)
-        respiratory_rate = st.number_input("Respiratory Rate", min_value=0.0, value=16.0)
-    with col2:
-        systolic_bp = st.number_input("Systolic BP", min_value=0.0, value=120.0)
-        diastolic_bp = st.number_input("Diastolic BP", min_value=0.0, value=80.0)
-        temperature = st.number_input("Temperature (°F)", min_value=0.0, value=98.6)
-        cpt_code = st.text_input("CPT Code", "99213")
+    # Load the dataset once to get unique values for validation
+    try:
+        df = pd.read_csv(DATA_PATH)
+        known_companies = set(df['Insurance_Company'].unique())
+        known_plans = set(df['Insurance_Plan'].unique())
+    except FileNotFoundError:
+        st.error(f"Data file not found at {DATA_PATH}. Please ensure it is in the correct directory.")
+        st.stop()
+    except Exception as e:
+        st.error(f"Error loading data file: {e}")
+        st.stop()
     
-    st.header("Claim Details")
-    col3, col4 = st.columns(2)
-    with col3:
-        icd_code = st.text_input("ICD Code", "I10")
-        insurance_company = st.text_input("Insurance Company", "Daman")
-    with col4:
-        insurance_plan = st.text_input("Insurance Plan", "Basic")
-    
-    st.header("Clinical Notes")
-    clinical_note = st.text_area("Clinical Notes", "Patient stable, normal findings")
-    
-    submitted = st.form_submit_button("Predict Claim Status")
 
-if submitted:
-    input_data = {
-        'Age': age,
-        'Gender': gender,
-        'Heart_Rate': heart_rate,
-        'Respiratory_Rate': respiratory_rate,
-        'Systolic_BP': systolic_bp,
-        'Diastolic_BP': diastolic_bp,
-        'Temperature': temperature,
-        'ICD_Code': icd_code,
-        'CPT_Code': cpt_code,
-        'Insurance_Company': insurance_company,
-        'Insurance_Plan': insurance_plan,
-    }
-    
-    # Call the prediction function
-    prediction = predict_claim(input_data, clinical_note)
-    
-    # Display the result
-    if prediction == "Error":
-        st.warning("Prediction could not be completed. Please check the logs.")
-    else:
-        st.success(f"The model predicts the claim status is: **{prediction}**")
+    # Input fields for the user
+    with st.form("claim_form"):
+        st.header("Patient Vitals & Demographics")
+        col1, col2 = st.columns(2)
+        with col1:
+            age = st.number_input("Age", min_value=0, max_value=120, value=30)
+            gender = st.selectbox("Gender", ["Male", "Female"])
+            heart_rate = st.number_input("Heart Rate", min_value=0.0, value=75.0)
+            respiratory_rate = st.number_input("Respiratory Rate", min_value=0.0, value=16.0)
+        with col2:
+            systolic_bp = st.number_input("Systolic BP", min_value=0.0, value=120.0)
+            diastolic_bp = st.number_input("Diastolic BP", min_value=0.0, value=80.0)
+            temperature = st.number_input("Temperature (°F)", min_value=0.0, value=98.6)
+            cpt_code = st.text_input("CPT Code", "99213")
+        
+        st.header("Claim Details")
+        col3, col4 = st.columns(2)
+        with col3:
+            insurance_company = st.text_input("Insurance Company", "Daman")
+            icd_code = st.text_input("ICD Code", "I10")
+        with col4:
+            insurance_plan = st.text_input("Insurance Plan", "Basic")
+        
+        st.header("Clinical Notes")
+        clinical_note = st.text_area("Clinical Notes", "Patient stable, normal findings")
+        
+        submitted = st.form_submit_button("Predict Claim Status")
 
+    if submitted:
+        # Check if the insurance company or plan is new
+        is_new_insurance_company = insurance_company not in known_companies
+        is_new_insurance_plan = insurance_plan not in known_plans
 
+        if is_new_insurance_company or is_new_insurance_plan:
+            st.warning("New insurance or new plan")
 
+        input_data = {
+            'Age': age,
+            'Gender': gender,
+            'Heart_Rate': heart_rate,
+            'Respiratory_Rate': respiratory_rate,
+            'Systolic_BP': systolic_bp,
+            'Diastolic_BP': diastolic_bp,
+            'Temperature': temperature,
+            'ICD_Code': icd_code,
+            'CPT_Code': cpt_code,
+            'Insurance_Company': insurance_company,
+            'Insurance_Plan': insurance_plan,
+        }
+        
+        # Call the prediction function
+        prediction = predict_claim(input_data, clinical_note)
+        
+        # Display the result
+        if prediction == "Error":
+            st.warning("Prediction could not be completed. Please check the logs.")
+        else:
+            st.success(f"The model predicts the claim status is: **{prediction}**")
 
