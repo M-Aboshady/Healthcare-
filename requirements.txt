@@ -7,4 +7,5 @@ openpyxl
 matplotlib
 seaborn
 scipy
+Word2Vec
 
