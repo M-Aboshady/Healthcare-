@@ -243,16 +243,7 @@ if __name__ == "__main__":
         Xs_test, Xt_test, y_test, y_pred, acc, report, cm = results
         print("🏁 Done. Model trained and evaluated.")
 
-        print("\n📊 Model Evaluation Results")
-        print(f"**Accuracy:** {acc:.2f}")
-        print("Classification Report:")
-        print(report)
-        
-        fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=CLASS_LABELS, yticklabels=CLASS_LABELS, ax=ax)
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.show()
+      
     except Exception as e:
         print(f"An error occurred during training or evaluation: {e}")
 
@@ -332,4 +323,5 @@ if __name__ == "__main__":
             st.warning("Prediction could not be completed. Please check the logs.")
         else:
             st.success(f"The model predicts the claim status is: **{prediction}**")
+
 
