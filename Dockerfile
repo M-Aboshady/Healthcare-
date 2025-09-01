@@ -1,10 +1,10 @@
-# Use official slim image with Python 3.10
+# Use official Python 3.10 slim image
 FROM python:3.10-slim
 
-# Avoid interactive tzdata setup
+# Avoid tzdata interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system deps for scipy/numpy etc.
+# Install system dependencies (for numpy/scipy etc.)
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
@@ -18,14 +18,14 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first (better caching)
+# Copy requirements first (cache layer)
 COPY requirements.txt .
 
-# Install dependencies
+# Install pip deps
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Copy rest of app
+# Copy rest of your app
 COPY . .
 
 # Run Streamlit
