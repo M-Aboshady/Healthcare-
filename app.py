@@ -179,11 +179,6 @@ def load_preprocess_and_train_model(file_path):
     recall_rejected = recall_score(y_test, y_pred, pos_label=1, zero_division=0)
     f1_rejected = f1_score(y_test, y_pred, pos_label=1, zero_division=0)
 
-    print("✅ Validation Accuracy:", acc)
-    print("Precision (Rejected):", prec_rejected)
-    print("Recall (Rejected):", recall_rejected)
-    print("F1-score (Rejected):", f1_rejected)
-    print(report)
 
     model.save(MODEL_PATH)
     joblib.dump(encoders, ENCODERS_PATH)
@@ -323,5 +318,6 @@ if __name__ == "__main__":
             st.warning("Prediction could not be completed. Please check the logs.")
         else:
             st.success(f"The model predicts the claim status is: **{prediction}**")
+
 
 
