@@ -2,9 +2,10 @@ streamlit
 pandas
 scikit-learn
 joblib
-tensorflow
+tensorflow==2.15.1
 gensim==4.3.2
 numpy==1.26.4
 scipy
+
 
 
