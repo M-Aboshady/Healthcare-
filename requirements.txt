@@ -1,13 +1,13 @@
-streamlit
-pandas
-scikit-learn
-joblib
-tensorflow==2.20.0
+
 gensim==4.3.2
 numpy==1.26.4
-matplotlib
-seaborn
 scipy==1.11.4
+streamlit==1.49.1
+pandas==2.3.2
+scikit-learn==1.7.1
+joblib==1.5.2
+tensorflow==2.15.1
+
 
 
 
