@@ -1,5 +1,4 @@
 import streamlit as st
-!pip install tensorflow
 import tensorflow as tf
 import pandas as pd
 import joblib
@@ -319,6 +318,7 @@ if __name__ == "__main__":
             st.warning("Prediction could not be completed. Please check the logs.")
         else:
             st.success(f"The model predicts the claim status is: **{prediction}**")
+
 
 
 
