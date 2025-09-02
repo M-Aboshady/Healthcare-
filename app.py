@@ -20,7 +20,7 @@ from sklearn.metrics import (
 from lightgbm import LGBMClassifier
 
 # --- FILE PATHS ---
-file_path = "/kaggle/input/balanced-33/synthetic_claims_uae_capitalized_2.csv"
+file_path = "synthetic_claims_uae_capitalized_3.csv"
 MODEL_PATH = "er_claim_model_lgbm.joblib"
 ENCODERS_PATH = "er_encoders_lgbm.joblib"
 FEATURES_PATH = "er_model_features_lgbm.joblib"
@@ -270,3 +270,4 @@ if __name__ == "__main__":
     except Exception as e:
         st.error(f"An error occurred during training or evaluation: {e}")
         print(f"An error occurred during training or evaluation: {e}")
+
