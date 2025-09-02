@@ -102,8 +102,7 @@ def load_preprocess_and_train_model(file_path):
     report = classification_report(y_test, y_pred, target_names=CLASS_LABELS, zero_division=0)
     cm = confusion_matrix(y_test, y_pred)
 
-    print("✅ Validation Accuracy:", acc)
-    print(report)
+    
 
     joblib.dump(model, MODEL_PATH)
     joblib.dump(encoders, ENCODERS_PATH)
@@ -244,12 +243,6 @@ if __name__ == "__main__":
         X_test, y_test, y_pred, acc, report, cm = results
         print("🏁 Done. Model trained and evaluated.")
 
-    
-        
-        
-
-        st.markdown("---")
-        st.subheader("🤖 Feature Importance")
         
         # Get feature names from structured data and TF-IDF vectorizer
         structured_feature_names = ['Age_encoded', 'CPT_Code_encoded', 'ICD_Code_encoded', 'Insurance_Company_encoded', 'Insurance_Plan_encoded'] # Adjust to match your encoding scheme
@@ -258,15 +251,11 @@ if __name__ == "__main__":
         # Combine all feature names
         feature_names = structured_feature_names + text_feature_names
         
-        # Map feature importance to names
-        importances = pd.DataFrame({'feature': feature_names, 'importance': model.feature_importances_})
-        
-        # Sort by importance
-        importances = importances.sort_values('importance', ascending=False).head(20) # Show top 20
         
         
     except Exception as e:
         st.error(f"An error occurred during training or evaluation: {e}")
         print(f"An error occurred during training or evaluation: {e}")
+
 
 
