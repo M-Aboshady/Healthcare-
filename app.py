@@ -3,8 +3,6 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy.sparse import hstack, csr_matrix
 
 from sklearn.preprocessing import LabelEncoder
@@ -270,4 +268,5 @@ if __name__ == "__main__":
     except Exception as e:
         st.error(f"An error occurred during training or evaluation: {e}")
         print(f"An error occurred during training or evaluation: {e}")
+
 
