@@ -1,16 +1,17 @@
-
-gensim
-numpy
-scipy
-streamlit
-pandas
-scikit-learn
-joblib
-tensorflow
+# Core ML
+tensorflow==2.15.1
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.3.2
+scipy==1.11.4
 
 
+# App
+streamlit==1.38.0
 
-
+# Optional utils
+joblib==1.3.2
+tqdm==4.66.5
 
 
 
