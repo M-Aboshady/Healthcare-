@@ -1,5 +1,5 @@
 # Core ML
-tensorflow
+
 numpy
 pandas
 scikit-learn
@@ -11,6 +11,7 @@ streamlit
 
 # Optional utils
 joblib
+
 
 
 
