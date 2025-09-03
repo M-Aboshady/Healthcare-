@@ -19,7 +19,7 @@ except ImportError:
 # 🔧 CONFIG
 # ==============================
 RUN_MODE = "kaggle"   # change to "streamlit" when deploying
-DATA_PATH = "/kaggle/input/multi-1/synthetic_claims_uae_multi_icd.csv"
+DATA_PATH = "synthetic_claims_uae_multi_icd.csv"
 MODEL_PATH = "er_claim_model_xgb.joblib"
 ENCODERS_PATH = "er_encoders_xgb.joblib"
 VECTORIZER_PATH = "er_notes_vectorizer_xgb.joblib"
@@ -266,3 +266,4 @@ elif RUN_MODE == "streamlit":
 
       
        
+
