@@ -4,13 +4,13 @@ numpy
 pandas
 scikit-learn
 scipy
-lightgbm
-
+xgboost
 # App
 streamlit
 
 # Optional utils
 joblib
+
 
 
 
