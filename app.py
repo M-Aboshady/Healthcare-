@@ -1,265 +1,268 @@
-import streamlit as st
-import pandas as pd
+
 import joblib
 import numpy as np
-import os
-import re
-
 from sklearn.preprocessing import LabelEncoder
-from typing import List, Dict, Tuple
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, accuracy_score, f1_score, precision_score, recall_score
-from gensim.models import Word2Vec
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from scipy.sparse import hstack
+from xgboost import XGBClassifier
+import os
 
-# Deep Learning specific imports
-import tensorflow as tf
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Input, Concatenate, Dropout, Embedding, GlobalAveragePooling1D
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras import backend as K
+# Only import Streamlit if in streamlit mode
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
-# --- FILE PATHS & CONFIG ---
+# ==============================
+# 🔧 CONFIG
+# ==============================
+RUN_MODE = "kaggle"   # change to "streamlit" when deploying
 DATA_PATH = "/kaggle/input/multi-1/synthetic_claims_uae_multi_icd.csv"
-MODEL_PATH = "dl_claim_model.h5"
-ARTIFACTS_PATH = "dl_model_artifacts.joblib"
-W2V_ICD_PATH = "w2v_icd.model"
-W2V_NOTES_PATH = "w2v_notes.model"
+MODEL_PATH = "er_claim_model_xgb.joblib"
+ENCODERS_PATH = "er_encoders_xgb.joblib"
+VECTORIZER_PATH = "er_notes_vectorizer_xgb.joblib"
 
-CLAIM_STATUS_MAP = {'Approved': 1, 'Rejected': 0}
-CLASS_LABELS = ['Rejected', 'Approved']
+CLAIM_STATUS_MAP = {"Approved": 0, "Rejected": 1}
+CLASS_LABELS = ["Approved", "Rejected"]
 
-# --- UTILITIES ---
-def _tokenize(text: str, delimiter=',') -> List[str]:
-    text = str(text).lower()
-    return [t.strip() for t in re.split(delimiter, text) if t.strip()]
 
-def _mean_embed(items: List[str], w2v: Word2Vec, dim: int) -> np.ndarray:
-    vecs = [w2v.wv[it] for it in items if it in w2v.wv]
-    if not vecs:
-        return np.zeros(dim, dtype=np.float32)
-    return np.mean(vecs, axis=0)
-
-def _safe_label_transform(le: LabelEncoder, value: str) -> int:
-    value = str(value)
+# ==============================
+# UTILS
+# ==============================
+def safe_transform(le, value):
+    """Safely transform a label if it's known, else map to first class."""
     if value in le.classes_:
-        return int(le.transform([value])[0])
-    classes = list(le.classes_)
-    if "Unknown" not in classes:
-        classes.append("Unknown")
-        le.classes_ = np.array(classes)
-    return int(le.transform(["Unknown"])[0])
+        return le.transform([value])[0]
+    else:
+        return le.transform([le.classes_[0]])[0]
 
-# --- DATA PREPROCESSING & MODEL TRAINING ---
-@st.cache_resource
-def train_model():
-    """Trains a new deep learning model and saves all artifacts."""
-    st.info("Model artifacts not found. Initiating model training...")
+
+# ==============================
+# LOAD + PREPROCESS
+# ==============================
+def load_and_preprocess_data():
     try:
         df = pd.read_csv(DATA_PATH)
-        df.columns = [c.strip().replace(" ", "_") for c in df.columns]
-        df = df.dropna(subset=['Age', 'Claim_Status'])  # Minimal cleaning
-    except FileNotFoundError:
-        st.error(f"Error: The data file '{DATA_PATH}' was not found.")
-        st.stop()
+        df.columns = [col.strip().replace(" ", "_") for col in df.columns]
+        if RUN_MODE == "kaggle":
+            print(f"✅ Data loaded: {df.shape}")
+        else:
+            st.success(f"Data loaded: {df.shape}")
 
-    st.write("📥 Data loaded:", df.shape)
+        numerical_features = [
+            "Age", "Systolic_BP", "Diastolic_BP",
+            "Heart_Rate", "Temperature", "Respiratory_Rate"
+        ]
+        categorical_features = [
+            "Gender", "CPT_Code", "Insurance_Company", "Insurance_Plan"
+        ]
+        target = "Claim_Status"
 
-    # Convert target to integers
-    df['Claim_Status_int'] = df['Claim_Status'].apply(
-        lambda x: CLAIM_STATUS_MAP.get(str(x).capitalize(), -1)
-    )
-    df = df[df['Claim_Status_int'] != -1]
-    y = df['Claim_Status_int'].values
+        # Text features
+        df["combined_text"] = df["ICD_Code"].fillna("") + " " + df["Clinical_Notes"].fillna("")
+        df_cleaned = df.dropna(subset=numerical_features + categorical_features + ["combined_text", target])
 
-    # Define features
-    num_cols = ['Age', 'Systolic_BP', 'Diastolic_BP', 'Heart_Rate', 'Temperature', 'Respiratory_Rate']
-    cat_cols = ['Gender', 'CPT_Code', 'Insurance_Company', 'Insurance_Plan']
-    icd_col = 'ICD_Code'
-    notes_col = 'Clinical_Notes'
+        # Encode categorical
+        encoders = {}
+        for col in categorical_features:
+            le = LabelEncoder()
+            df_cleaned[col] = le.fit_transform(df_cleaned[col].astype(str))
+            encoders[col] = le
 
-    # --- Preprocess Categorical Features ---
-    encoders = {c: LabelEncoder().fit(df[c].astype(str)) for c in cat_cols}
-    X_cat_encoded = {c: encoders[c].transform(df[c].astype(str)) for c in cat_cols}
+        # Encode text
+        vectorizer = TfidfVectorizer(max_features=500)
+        X_text = vectorizer.fit_transform(df_cleaned["combined_text"])
 
-    # --- Preprocess Text Features with Word2Vec ---
-    icd_lists = df[icd_col].apply(lambda x: _tokenize(x, ',')).tolist()
-    w2v_icd = Word2Vec(icd_lists, vector_size=50, window=5, min_count=1, workers=4)
-    w2v_icd.save(W2V_ICD_PATH)
-    
-    notes_tokens = df[notes_col].apply(lambda x: _tokenize(x, ' ')).tolist()
-    w2v_notes = Word2Vec(notes_tokens, vector_size=50, window=5, min_count=1, workers=4)
-    w2v_notes.save(W2V_NOTES_PATH)
+        # Target
+        y_encoded = df_cleaned[target].map(CLAIM_STATUS_MAP).astype(int)
 
-    X_icd = np.vstack([_mean_embed(lst, w2v_icd, 50) for lst in icd_lists])
-    X_notes = np.vstack([_mean_embed(toks, w2v_notes, 50) for toks in notes_tokens])
+        # Structured features
+        X_structured = df_cleaned[numerical_features + categorical_features]
 
-    # --- Prepare Data for Deep Learning ---
-    X_num = df[num_cols].values
-    X_cat = np.hstack([X_cat_encoded[c].reshape(-1, 1) for c in cat_cols])
-    
-    # Concatenate all features
-    X_combined = np.hstack([X_num, X_cat, X_icd, X_notes])
-    X_train, X_test, y_train, y_test = train_test_split(X_combined, y, test_size=0.2, random_state=42, stratify=y)
-    
-    # --- Build Functional Model ---
-    num_input = Input(shape=(X_num.shape[1],), name='num_input')
-    cat_input = Input(shape=(X_cat.shape[1],), name='cat_input')
-    icd_input = Input(shape=(X_icd.shape[1],), name='icd_input')
-    notes_input = Input(shape=(X_notes.shape[1],), name='notes_input')
+        # Combined features
+        X_combined = hstack([X_structured.values, X_text])
 
-    merged = Concatenate()([num_input, cat_input, icd_input, notes_input])
-    
-    dense1 = Dense(256, activation='relu')(merged)
-    dropout1 = Dropout(0.3)(dense1)
-    dense2 = Dense(128, activation='relu')(dropout1)
-    dropout2 = Dropout(0.3)(dense2)
-    output = Dense(1, activation='sigmoid')(dropout2)
-    
-    model = Model(inputs=[num_input, cat_input, icd_input, notes_input], outputs=output)
-    
-    model.compile(
-        optimizer=Adam(learning_rate=0.001),
-        loss='binary_crossentropy',
-        metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()]
-    )
-    
-    # Train the model
-    model.fit(
-        {'num_input': X_train[:, :len(num_cols)],
-         'cat_input': X_train[:, len(num_cols):len(num_cols)+len(cat_cols)],
-         'icd_input': X_train[:, len(num_cols)+len(cat_cols):len(num_cols)+len(cat_cols)+50],
-         'notes_input': X_train[:, len(num_cols)+len(cat_cols)+50:]},
-        y_train,
-        epochs=50,
-        batch_size=32,
-        validation_split=0.2,
-        verbose=0
+        return X_combined, y_encoded, encoders, vectorizer
+    except Exception as e:
+        if RUN_MODE == "kaggle":
+            print(f"❌ Error loading data: {e}")
+        else:
+            st.error(f"Error loading data: {e}")
+        return None, None, None, None
+
+
+# ==============================
+# TRAINING
+# ==============================
+def train_and_save_model():
+    X, y, encoders, vectorizer = load_and_preprocess_data()
+    if X is None:
+        return
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    # Evaluate the model
-    y_pred_prob = model.predict([X_test[:, :len(num_cols)], X_test[:, len(num_cols):len(num_cols)+len(cat_cols)],
-                                 X_test[:, len(num_cols)+len(cat_cols):len(num_cols)+len(cat_cols)+50],
-                                 X_test[:, len(num_cols)+len(cat_cols)+50:]], verbose=0)
-    y_pred = (y_pred_prob > 0.5).astype(int)
-    
+    neg, pos = np.bincount(y_train)
+    scale_pos_weight = neg / pos if pos > 0 else 1
+
+    if RUN_MODE == "kaggle":
+        print(f"⚖️ Imbalance: neg={neg}, pos={pos}, weight={scale_pos_weight:.2f}")
+        print("🚀 Training XGBoost model...")
+    else:
+        st.info(f"Training model... imbalance: neg={neg}, pos={pos}")
+
+    model = XGBClassifier(
+        n_estimators=300,
+        learning_rate=0.1,
+        max_depth=6,
+        scale_pos_weight=scale_pos_weight,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        eval_metric="logloss",
+        use_label_encoder=False,
+        random_state=42,
+        n_jobs=-1
+    )
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     report = classification_report(y_test, y_pred, target_names=CLASS_LABELS, zero_division=0)
-    
-    # Save artifacts
-    model.save(MODEL_PATH)
-    artifacts = {
-        'encoders': encoders,
-        'icd_w2v': w2v_icd,
-        'notes_w2v': w2v_notes,
-        'num_cols': num_cols,
-        'cat_cols': cat_cols,
-        'icd_col': icd_col,
-        'notes_col': notes_col,
-        'known_companies': set(df['Insurance_Company'].unique()),
-        'known_plans': set(df['Insurance_Plan'].unique()),
-        'val_accuracy': acc,
-        'val_report': report
-    }
-    joblib.dump(artifacts, ARTIFACTS_PATH)
-    st.success("🤖 Deep learning model trained and saved successfully!")
-    return artifacts
+    cm = confusion_matrix(y_test, y_pred)
 
-# --- PREDICTION FUNCTION ---
-def predict_claim(payload: Dict) -> Tuple[str, float]:
-    """Loads artifacts and makes a single prediction."""
-    try:
-        model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-        artifacts = joblib.load(ARTIFACTS_PATH)
-        w2v_icd = Word2Vec.load(W2V_ICD_PATH)
-        w2v_notes = Word2Vec.load(W2V_NOTES_PATH)
-    except Exception as e:
-        st.error(f"Failed to load model artifacts: {e}")
-        return "Error", 0.0
+    joblib.dump(model, MODEL_PATH)
+    joblib.dump(encoders, ENCODERS_PATH)
+    joblib.dump(vectorizer, VECTORIZER_PATH)
 
-    num_cols = artifacts['num_cols']
-    cat_cols = artifacts['cat_cols']
-    encoders = artifacts['encoders']
-    icd_col = artifacts['icd_col']
-    notes_col = artifacts['notes_col']
-
-    # Preprocess inputs
-    X_num_input = np.array([[float(payload.get(c, 0.0)) for c in num_cols]], dtype=np.float32)
-    X_cat_input = np.array([[_safe_label_transform(encoders[c], payload.get(c, 'Unknown')) for c in cat_cols]], dtype=np.float32)
-    
-    icd_tokens = _tokenize(payload.get(icd_col, ''), ',')
-    X_icd_input = _mean_embed(icd_tokens, w2v_icd, 50).reshape(1, -1)
-    
-    notes_tokens = _tokenize(payload.get(notes_col, ''))
-    X_notes_input = _mean_embed(notes_tokens, w2v_notes, 50).reshape(1, -1)
-
-    # Predict
-    prob = model.predict(
-        {'num_input': X_num_input, 'cat_input': X_cat_input, 'icd_input': X_icd_input, 'notes_input': X_notes_input}
-    )[0, 0]
-    
-    pred_label = CLASS_LABELS[int(prob > 0.5)]
-    return pred_label, prob
-
-# --- MAIN APP EXECUTION ---
-if __name__ == "__main__":
-    st.title("🏥 UAE ER Claim Approval Prediction App (Functional DL)")
-
-    # Check for model and train if needed
-    if not os.path.exists(MODEL_PATH):
-        artifacts = train_model()
+    if RUN_MODE == "kaggle":
+        print(f"✅ Model trained & saved (Accuracy: {acc:.3f})")
+        print(report)
+        print("Confusion Matrix:\n", cm)
     else:
-        try:
-            artifacts = joblib.load(ARTIFACTS_PATH)
-            st.success(f"Model loaded. Validation accuracy: **{artifacts['val_accuracy']:.3f}**")
-        except Exception:
-            st.warning("Failed to load artifacts. Retraining the model.")
-            artifacts = train_model()
-            
-    if artifacts is None:
-        st.stop()
+        st.success(f"Model trained (Accuracy: {acc:.3f})")
+        st.text(report)
+        st.write("Confusion Matrix", cm)
 
-    # Input fields for the user
-    col1, col2, col3 = st.columns([1, 1, 1])
+    return model, encoders, vectorizer
 
-    with col1:
-        st.header("🫀 Vital Signs")
-        age = st.number_input("Age", 0, 120, 30)
-        heart_rate = st.number_input("Heart Rate", 30, 200, 75)
-        respiratory_rate = st.number_input("Respiratory Rate", 5, 60, 18)
+
+# ==============================
+# PREDICTION
+# ==============================
+def predict_claim(input_data):
+    try:
+        model = joblib.load(MODEL_PATH)
+        encoders = joblib.load(ENCODERS_PATH)
+        vectorizer = joblib.load(VECTORIZER_PATH)
+    except FileNotFoundError:
+        return "Error", None
+
+    numerical_features = ["Age", "Systolic_BP", "Diastolic_BP", "Heart_Rate", "Temperature", "Respiratory_Rate"]
+    categorical_features = ["Gender", "CPT_Code", "Insurance_Company", "Insurance_Plan"]
+
+    df_input = pd.DataFrame([input_data])
+
+    # 🚨 New policy/plan check
+    for col in ["Insurance_Company", "Insurance_Plan"]:
+        le = encoders[col]
+        if str(df_input[col].iloc[0]) not in le.classes_:
+            msg = f"❌ New {col.replace('_', ' ')} '{df_input[col].iloc[0]}' not in training data. Retrain required."
+            if RUN_MODE == "kaggle":
+                print(msg)
+            else:
+                st.error(msg)
+            return "Unknown", None
+
+    # Encode categorical
+    for col in categorical_features:
+        df_input[col] = df_input[col].apply(lambda x: safe_transform(encoders[col], str(x)))
+
+    # Text
+    combined_text_input = str(input_data["ICD_Code"]) + " " + str(input_data["Clinical_Notes"])
+    X_text = vectorizer.transform([combined_text_input])
+    X_structured = df_input[numerical_features + categorical_features]
+    X_input = hstack([X_structured.values, X_text])
+
+    prediction = model.predict(X_input)[0]
+    return CLASS_LABELS[prediction], model
+
+
+# ==============================
+# 🚀 MAIN EXECUTION
+# ==============================
+if RUN_MODE == "kaggle":
+    # Train and test in Kaggle
+    model, encoders, vectorizer = train_and_save_model()
+
+    sample_input = {
+        "Age": 45, "Systolic_BP": 120, "Diastolic_BP": 80,
+        "Heart_Rate": 78, "Temperature": 37, "Respiratory_Rate": 18,
+        "Gender": "Male", "CPT_Code": "99283", "Insurance_Company": "Daman",
+        "Insurance_Plan": "Basic", "ICD_Code": "I10",
+        "Clinical_Notes": "Patient reported chest pain and high blood pressure."
+    }
+    pred, _ = predict_claim(sample_input)
+    print(f"🔮 Prediction for sample input: {pred}")
+
+elif RUN_MODE == "streamlit":
+    st.title("🏥 UAE Claim Approval Prediction (XGBoost + TF-IDF)")
+
+    # Train/load model
+    if st.button("Train/Reload Model"):
+        train_and_save_model()
+
+    # User inputs
+    st.header("Enter Claim Details")
+    age = st.number_input("Age", 0, 120, 40)
+    sys_bp = st.number_input("Systolic BP", 80, 200, 120)
+    dia_bp = st.number_input("Diastolic BP", 40, 120, 80)
+    hr = st.number_input("Heart Rate", 30, 200, 75)
+    temp = st.number_input("Temperature", 30, 42, 37)
+    rr = st.number_input("Respiratory Rate", 5, 50, 18)
+    gender = st.selectbox("Gender", ["Male", "Female"])
+    cpt = st.text_input("CPT Code", "99283")
+    company = st.text_input("Insurance Company", "Daman")
+    plan = st.text_input("Insurance Plan", "Basic")
+
+    # Multi ICD entries (up to 4)
+    st.subheader("ICD Codes (up to 4)")
+    icd_codes = []
+    for i in range(1, 5):
+        code = st.text_input(f"ICD Code {i}", "" if i > 1 else "I10")
+        if code.strip():
+            icd_codes.append(code.strip())
+
+    notes = st.text_area("Clinical Notes", "Patient has high BP and chest pain.")
+
+    if st.button("Predict"):
+        # Join ICD codes into a single string
+        icd_text = " ".join(icd_codes)
+
+        input_data = {
+            "Age": age, "Systolic_BP": sys_bp, "Diastolic_BP": dia_bp,
+            "Heart_Rate": hr, "Temperature": temp, "Respiratory_Rate": rr,
+            "Gender": gender, "CPT_Code": cpt,
+            "Insurance_Company": company, "Insurance_Plan": plan,
+            "ICD_Code": icd_text, "Clinical_Notes": notes
+        }
+        pred, _ = predict_claim(input_data)
+        st.subheader(f"Prediction: {pred}")
+
+
+
+   
+       
+  
     
-    with col2:
-        st.header("👤 Demographics & Insurance")
-        gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-        insurance_company = st.text_input("Insurance Company", "Daman")
-        insurance_plan = st.text_input("Insurance Plan", "Basic")
-        cpt_code = st.text_input("CPT Code", "99283")
+   
+       
+        
+    
+        
+    
 
-    with col3:
-        st.header("📝 Claim Details")
-        systolic_bp = st.number_input("Systolic BP", 50, 250, 120)
-        diastolic_bp = st.number_input("Diastolic BP", 30, 150, 80)
-        temperature = st.number_input("Temperature", 30, 45, 37)
-        icd_code = st.text_input("ICD Code (e.g., 'S72.001A,I10')", "S72.001A")
-        clinical_notes = st.text_area("Clinical Notes", "Patient reported chest pain and shortness of breath.", height=100)
-
-    if st.button("🔮 Predict Claim Status"):
-        if insurance_company not in artifacts['known_companies'] or insurance_plan not in artifacts['known_plans']:
-            st.warning("⚠️ New insurance or new plan detected. Prediction stopped.")
-            st.info("The model cannot reliably predict for new insurance data as it was not in the training set.")
-        else:
-            payload = {
-                'Age': age, 'Gender': gender, 'Heart_Rate': heart_rate, 'Respiratory_Rate': respiratory_rate,
-                'Systolic_BP': systolic_bp, 'Diastolic_BP': diastolic_bp, 'Temperature': temperature,
-                'CPT_Code': cpt_code, 'ICD_Code': icd_code,
-                'Insurance_Company': insurance_company, 'Insurance_Plan': insurance_plan,
-                'Clinical_Notes': clinical_notes
-            }
-            pred_label, prob = predict_claim(payload)
-            st.success(f"📌 Predicted Claim Status: **{pred_label}** (Probability: {prob:.3f})")
-
-    # Display validation report
-    if 'val_report' in artifacts:
-        with st.expander("📊 Validation Report"):
-            st.text(artifacts['val_report'])
-
+      
        
