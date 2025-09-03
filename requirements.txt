@@ -5,13 +5,13 @@ pandas
 scikit-learn
 scipy
 lightgbm
-gensim
-tensorflow
+
 # App
 streamlit
 
 # Optional utils
 joblib
+
 
 
 
