@@ -19,7 +19,7 @@ except ImportError:
 # ==============================
 # 🔧 CONFIG
 # ==============================
-RUN_MODE = "streamlit"   # "kaggle" for testing, "streamlit" for deployment
+RUN_MODE = "kaggle"   # "kaggle" for testing, "streamlit" for deployment
 DATA_PATH = "synthetic_claims_uae_multi_icd.csv"
 MODEL_PATH = "er_claim_model_rf.joblib"
 ENCODERS_PATH = "er_encoders_rf.joblib"
@@ -168,7 +168,7 @@ def predict_claim(input_data):
 # ==============================
 # 🚀 MAIN EXECUTION (Kaggle)
 # ==============================
-if RUN_MODE == "streamlit":
+if RUN_MODE == "kaggle":
     model, encoders, vectorizer = train_and_save_model()
 
     sample_input = {
@@ -226,5 +226,6 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
+
 
 
