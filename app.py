@@ -5,8 +5,8 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.ensemble import RandomForestClassifier
 from scipy.sparse import hstack
-from xgboost import XGBClassifier
 import os
 
 # Only import Streamlit if in streamlit mode
@@ -20,9 +20,9 @@ except ImportError:
 # ==============================
 RUN_MODE = "kaggle"   # change to "streamlit" when deploying
 DATA_PATH = "synthetic_claims_uae_multi_icd.csv"
-MODEL_PATH = "er_claim_model_xgb.joblib"
-ENCODERS_PATH = "er_encoders_xgb.joblib"
-VECTORIZER_PATH = "er_notes_vectorizer_xgb.joblib"
+MODEL_PATH = "er_claim_model_rf.joblib"
+ENCODERS_PATH = "er_encoders_rf.joblib"
+VECTORIZER_PATH = "er_notes_vectorizer_rf.joblib"
 
 CLAIM_STATUS_MAP = {"Approved": 0, "Rejected": 1}
 CLASS_LABELS = ["Approved", "Rejected"]
@@ -105,23 +105,16 @@ def train_and_save_model():
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    neg, pos = np.bincount(y_train)
-    scale_pos_weight = neg / pos if pos > 0 else 1
-
     if RUN_MODE == "kaggle":
-        print(f"⚖️ Imbalance: neg={neg}, pos={pos}, weight={scale_pos_weight:.2f}")
-        print("🚀 Training XGBoost model...")
+        print(f"🚀 Training Random Forest model...")
     else:
-        st.info(f"Training model... imbalance: neg={neg}, pos={pos}")
+        st.info("Training Random Forest model...")
 
-    model = XGBClassifier(
+    model = RandomForestClassifier(
         n_estimators=300,
-        learning_rate=0.1,
-        max_depth=6,
-        scale_pos_weight=scale_pos_weight,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        eval_metric="logloss",
+        max_depth=12,
+        min_samples_split=5,
+        min_samples_leaf=2,
         random_state=42,
         n_jobs=-1
     )
@@ -207,7 +200,7 @@ if RUN_MODE == "kaggle":
     print(f"🔮 Prediction for sample input: {pred}")
 
 elif RUN_MODE == "streamlit":
-    st.title("🏥 UAE Claim Approval Prediction (XGBoost + TF-IDF)")
+    st.title("🏥 UAE Claim Approval Prediction (Random Forest + TF-IDF)")
 
     # Train/load model
     if st.button("Train/Reload Model"):
@@ -249,22 +242,3 @@ elif RUN_MODE == "streamlit":
         }
         pred, _ = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
-
-
-
-   
-       
-  
-    
-   
-       
-        
-    
-        
-    
-
-      
-       
-
-
-
