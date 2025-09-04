@@ -19,7 +19,7 @@ except ImportError:
 # ==============================
 # 🔧 CONFIG
 # ==============================
-RUN_MODE = "streamlit"   # change to "streamlit" only when deploying
+RUN_MODE = "streamlit"   # "kaggle" for testing, "streamlit" for deployment
 DATA_PATH = "synthetic_claims_uae_multi_icd.csv"
 MODEL_PATH = "er_claim_model_rf.joblib"
 ENCODERS_PATH = "er_encoders_rf.joblib"
@@ -164,8 +164,8 @@ if RUN_MODE == "kaggle":
     model, encoders, vectorizer = train_and_save_model()
 
     sample_input = {
-        "Age": 45, "Systolic_BP": 120, "Diastolic_BP": 80,
-        "Heart_Rate": 78, "Temperature": 37, "Respiratory_Rate": 18,
+        "Age": 45.5, "Systolic_BP": 120.2, "Diastolic_BP": 79.8,
+        "Heart_Rate": 78.0, "Temperature": 37.5, "Respiratory_Rate": 18.2,
         "Gender": "Male", "CPT_Code": "99283", "Insurance_Company": "Daman",
         "Insurance_Plan": "Basic", 
         "ICD_Code": "I10 E11 Z79",   # multiple ICD codes joined
@@ -185,12 +185,12 @@ elif RUN_MODE == "streamlit":
         train_and_save_model()
 
     st.header("Enter Claim Details")
-    age = st.number_input("Age", 0, 120, 40)
-    sys_bp = st.number_input("Systolic BP", 80, 200, 120)
-    dia_bp = st.number_input("Diastolic BP", 40, 120, 80)
-    hr = st.number_input("Heart Rate", 30, 200, 75)
-    temp = st.number_input("Temperature", 30, 42, 37)
-    rr = st.number_input("Respiratory Rate", 5, 50, 18)
+    age = st.number_input("Age", min_value=0.0, max_value=120.0, value=40.0, step=0.1)
+    sys_bp = st.number_input("Systolic BP", min_value=80.0, max_value=200.0, value=120.0, step=0.1)
+    dia_bp = st.number_input("Diastolic BP", min_value=40.0, max_value=120.0, value=80.0, step=0.1)
+    hr = st.number_input("Heart Rate", min_value=30.0, max_value=200.0, value=75.0, step=0.1)
+    temp = st.number_input("Temperature", min_value=30.0, max_value=42.0, value=37.0, step=0.1)
+    rr = st.number_input("Respiratory Rate", min_value=5.0, max_value=50.0, value=18.0, step=0.1)
     gender = st.selectbox("Gender", ["Male", "Female"])
     cpt = st.text_input("CPT Code", "99283")
     company = st.text_input("Insurance Company", "Daman")
@@ -210,8 +210,8 @@ elif RUN_MODE == "streamlit":
         icd_text = " ".join(icd_codes)
 
         input_data = {
-            "Age": age, "Systolic_BP": sys_bp, "Diastolic_BP": dia_bp,
-            "Heart_Rate": hr, "Temperature": temp, "Respiratory_Rate": rr,
+            "Age": float(age), "Systolic_BP": float(sys_bp), "Diastolic_BP": float(dia_bp),
+            "Heart_Rate": float(hr), "Temperature": float(temp), "Respiratory_Rate": float(rr),
             "Gender": gender, "CPT_Code": cpt,
             "Insurance_Company": company, "Insurance_Plan": plan,
             "ICD_Code": icd_text, "Clinical_Notes": notes
