@@ -168,7 +168,7 @@ def predict_claim(input_data):
 # ==============================
 # 🚀 MAIN EXECUTION (Kaggle)
 # ==============================
-if RUN_MODE == "kaggle":
+if RUN_MODE == "streamlit":
     model, encoders, vectorizer = train_and_save_model()
 
     sample_input = {
@@ -226,4 +226,5 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
+
 
