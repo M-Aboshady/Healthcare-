@@ -124,10 +124,18 @@ def train_and_save_model():
 # ==============================
 # PREDICTION
 # ==============================
+import os
+
 def predict_claim(input_data):
+    if not os.path.exists(MODEL_PATH):
+        print("⚠️ Model not found, training a new one...")
+        train_and_save_model()
+
     model = joblib.load(MODEL_PATH)
     encoders = joblib.load(ENCODERS_PATH)
     vectorizer = joblib.load(VECTORIZER_PATH)
+    
+    
 
     numerical_features = ["Age", "Systolic_BP", "Diastolic_BP", "Heart_Rate", "Temperature", "Respiratory_Rate"]
     categorical_features = ["Gender", "CPT_Code", "Insurance_Company", "Insurance_Plan"]
@@ -218,3 +226,4 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
+
