@@ -38,6 +38,21 @@ def safe_transform(le, value):
         return le.transform([value])[0]
     else:
         return le.transform([le.classes_[0]])[0]
+        
+def match_input_to_encoder(le, value):
+    """
+    Match user input to known encoder classes, ignoring case and allowing partial match.
+    If no good match found, fallback to first class.
+    """
+    value = str(value).strip().lower()
+    for cls in le.classes_:
+        if cls.lower().startswith(value):  # partial match on beginning
+            return le.transform([cls])[0]
+    if value in [cls.lower() for cls in le.classes_]:
+        matched_cls = [cls for cls in le.classes_ if cls.lower() == value][0]
+        return le.transform([matched_cls])[0]
+    return le.transform([le.classes_[0]])[0]  # fallback
+        
 
 
 # ==============================
@@ -152,8 +167,10 @@ def predict_claim(input_data):
                 st.warning(warning_msg)
 
     # Encode categorical
+    # Encode categorical (case-insensitive + partial match support
     for col in categorical_features:
-        df_input[col] = df_input[col].apply(lambda x: safe_transform(encoders[col], str(x)))
+        df_input[col] = df_input[col].apply(lambda x: match_input_to_encoder(encoders[col], str(x)))
+
 
     # Text (join multiple ICD codes if provided)
     combined_text_input = str(input_data["ICD_Code"]) + " " + str(input_data["Clinical_Notes"])
@@ -226,6 +243,7 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
+
 
 
 
