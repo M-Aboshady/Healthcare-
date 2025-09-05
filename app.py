@@ -143,34 +143,49 @@ def predict_claim(input_data):
     df_input = pd.DataFrame([input_data])
 
     # Separate categorical and text
-    categorical_features = ["Insurance_Company", "Insurance_Plan"]
+    categorical_features = ["Gender", "Insurance_Company", "Insurance_Plan"]
     text_features = ["ICD_Code", "Clinical_Notes"]
 
+    # Encode categorical (case-insensitive + partial match for company/plan)
     try:
-        # Encode categorical (case-insensitive + partial match)
         for col in categorical_features:
-            df_input[col] = df_input[col].apply(
-                lambda x: match_input_to_encoder(encoders[col], str(x))
-            )
-    except Exception:
-        # If encoding totally fails → fallback message
-        return "⚠️ New company/plan detected. Please retrain model."
+            if col in ["Insurance_Company", "Insurance_Plan"]:
+                df_input[col] = df_input[col].apply(
+                    lambda x: match_input_to_encoder(encoders[col], str(x))
+                )
+            else:
+                # Normal label encoding (e.g., Gender)
+                le = encoders[col]
+                val = str(df_input[col].iloc[0]).lower()
+                classes_lower = [c.lower() for c in le.classes_]
+
+                if val in classes_lower:
+                    mapped_val = classes_lower.index(val)
+                    df_input[col] = mapped_val
+                else:
+                    return f"⚠️ New {col} '{val}' not seen in training. Retrain needed."
+    except Exception as e:
+        return f"⚠️ Encoding failed: {e}"
 
     # Vectorize ICD + notes
     text_data = df_input[text_features].astype(str).agg(" ".join, axis=1)
     text_vectorized = vectorizer.transform(text_data)
 
-    # Merge with numeric
+    # Drop text cols and convert numerics to float
     df_input = df_input.drop(columns=text_features)
-    X_numeric = df_input.values.astype(float)  # force numeric dtype
-    X_input = hstack([X_numeric, text_vectorized])
+    try:
+        X_numeric = df_input.values.astype(float)
+        X_input = hstack([X_numeric, text_vectorized])
+    except Exception as e:
+        return f"⚠️ Feature preparation failed: {e}"
 
-
+    # Prediction
     try:
         pred = model.predict(X_input)[0]
-        return "✅ Approved" if pred == 0 else "❌ Denied"
+        return "✅ Approved" if pred == 1 else "❌ Denied"
     except Exception as e:
-        return f"⚠️ Could not predict due to error: {e}"
+        return f"⚠️ Could not predict: {e}"
+
 
 # ==============================
 # 🚀 MAIN EXECUTION (Kaggle)
@@ -232,4 +247,5 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
+
 
