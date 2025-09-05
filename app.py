@@ -162,7 +162,9 @@ def predict_claim(input_data):
 
     # Merge with numeric
     df_input = df_input.drop(columns=text_features)
-    X_input = hstack([df_input.values, text_vectorized])
+    X_numeric = df_input.values.astype(float)  # force numeric dtype
+    X_input = hstack([X_numeric, text_vectorized])
+
 
     try:
         pred = model.predict(X_input)[0]
@@ -230,3 +232,4 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
+
