@@ -1,4 +1,4 @@
-# ==============================
+
 # 📦 Imports
 # ==============================
 import pandas as pd
@@ -28,6 +28,7 @@ VECTORIZER_PATH = "er_notes_vectorizer_rf.joblib"
 CLAIM_STATUS_MAP = {"Approved": 0, "Rejected": 1}
 CLASS_LABELS = ["Approved", "Rejected"]
 
+
 # ==============================
 # UTILS
 # ==============================
@@ -38,17 +39,6 @@ def safe_transform(le, value):
     else:
         return le.transform([le.classes_[0]])[0]
 
-def match_input_to_encoder(encoder, value: str):
-    """Case-insensitive + first-word matching for company/plan."""
-    value_clean = value.strip().split()[0].lower()
-    classes_clean = [c.lower().split()[0] for c in encoder.classes_]
-
-    if value_clean in classes_clean:
-        matched = encoder.classes_[classes_clean.index(value_clean)]
-        return encoder.transform([matched])[0]
-    else:
-        # fallback: map to first known class
-        return encoder.transform([encoder.classes_[0]])[0]
 
 # ==============================
 # LOAD + PREPROCESS
@@ -93,6 +83,7 @@ def load_and_preprocess_data():
 
     return X_combined, y_encoded, encoders, vectorizer
 
+
 # ==============================
 # TRAINING
 # ==============================
@@ -129,62 +120,49 @@ def train_and_save_model():
 
     return model, encoders, vectorizer
 
+
 # ==============================
 # PREDICTION
 # ==============================
+import os
+
 def predict_claim(input_data):
-    try:
-        model = joblib.load(MODEL_PATH)
-        encoders = joblib.load(ENCODERS_PATH)
-        vectorizer = joblib.load(VECTORIZER_PATH)
-    except Exception as e:
-        return f"❌ Error loading model or encoders: {e}"
+    if not os.path.exists(MODEL_PATH):
+        print("⚠️ Model not found, training a new one...")
+        train_and_save_model()
+
+    model = joblib.load(MODEL_PATH)
+    encoders = joblib.load(ENCODERS_PATH)
+    vectorizer = joblib.load(VECTORIZER_PATH)
+    
+    
+
+    numerical_features = ["Age", "Systolic_BP", "Diastolic_BP", "Heart_Rate", "Temperature", "Respiratory_Rate"]
+    categorical_features = ["Gender", "CPT_Code", "Insurance_Company", "Insurance_Plan"]
 
     df_input = pd.DataFrame([input_data])
 
-    # Separate categorical and text
-    categorical_features = ["Gender", "Insurance_Company", "Insurance_Plan"]
-    text_features = ["ICD_Code", "Clinical_Notes"]
+    # 🚨 Warning for unseen company/plan
+    for col in ["Insurance_Company", "Insurance_Plan"]:
+        le = encoders[col]
+        if str(df_input[col].iloc[0]) not in le.classes_:
+            warning_msg = f"⚠️ New {col.replace('_', ' ')} '{df_input[col].iloc[0]}' not in training data."
+            print(warning_msg)
+            if st:
+                st.warning(warning_msg)
 
-    # Encode categorical (case-insensitive + partial match for company/plan)
-    try:
-        for col in categorical_features:
-            if col in ["Insurance_Company", "Insurance_Plan"]:
-                df_input[col] = df_input[col].apply(
-                    lambda x: match_input_to_encoder(encoders[col], str(x))
-                )
-            else:
-                # Normal label encoding (e.g., Gender)
-                le = encoders[col]
-                val = str(df_input[col].iloc[0]).lower()
-                classes_lower = [c.lower() for c in le.classes_]
+    # Encode categorical
+    for col in categorical_features:
+        df_input[col] = df_input[col].apply(lambda x: safe_transform(encoders[col], str(x)))
 
-                if val in classes_lower:
-                    mapped_val = classes_lower.index(val)
-                    df_input[col] = mapped_val
-                else:
-                    return f"⚠️ New {col} '{val}' not seen in training. Retrain needed."
-    except Exception as e:
-        return f"⚠️ Encoding failed: {e}"
+    # Text (join multiple ICD codes if provided)
+    combined_text_input = str(input_data["ICD_Code"]) + " " + str(input_data["Clinical_Notes"])
+    X_text = vectorizer.transform([combined_text_input])
+    X_structured = df_input[numerical_features + categorical_features]
+    X_input = hstack([X_structured.values, X_text])
 
-    # Vectorize ICD + notes
-    text_data = df_input[text_features].astype(str).agg(" ".join, axis=1)
-    text_vectorized = vectorizer.transform(text_data)
-
-    # Drop text cols and convert numerics to float
-    df_input = df_input.drop(columns=text_features)
-    try:
-        X_numeric = df_input.values.astype(float)
-        X_input = hstack([X_numeric, text_vectorized])
-    except Exception as e:
-        return f"⚠️ Feature preparation failed: {e}"
-
-    # Prediction
-    try:
-        pred = model.predict(X_input)[0]
-        return "✅ Approved" if pred == 1 else "❌ Denied"
-    except Exception as e:
-        return f"⚠️ Could not predict: {e}"
+    prediction = model.predict(X_input)[0]
+    return CLASS_LABELS[prediction]
 
 
 # ==============================
@@ -196,13 +174,14 @@ if RUN_MODE == "kaggle":
     sample_input = {
         "Age": 45.5, "Systolic_BP": 120.2, "Diastolic_BP": 79.8,
         "Heart_Rate": 78.0, "Temperature": 37.5, "Respiratory_Rate": 18.2,
-        "Gender": "Male", "CPT_Code": "99283", "Insurance_Company": "daman",
-        "Insurance_Plan": "basic", 
+        "Gender": "Male", "CPT_Code": "99283", "Insurance_Company": "Daman",
+        "Insurance_Plan": "Basic", 
         "ICD_Code": "I10 E11 Z79",   # multiple ICD codes joined
         "Clinical_Notes": "Patient reported chest pain and high blood pressure."
     }
     pred = predict_claim(sample_input)
     print(f"🔮 Prediction for sample input: {pred}")
+
 
 # ==============================
 # 🌐 STREAMLIT APP (only runs if deployed)
@@ -247,5 +226,3 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
-
-
