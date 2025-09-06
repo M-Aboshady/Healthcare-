@@ -4,13 +4,14 @@ numpy
 pandas
 scikit-learn
 scipy
-gensim
+
 xgboost
 # App
 streamlit
 
 # Optional utils
 joblib
+
 
 
 
