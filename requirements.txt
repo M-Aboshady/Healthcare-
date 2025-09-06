@@ -1,16 +1,19 @@
-# Core ML
+# Core ML + Data
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.1
+xgboost==2.0.3
 
-numpy
-pandas
-scikit-learn
-scipy
-sentence_transformers
-xgboost
-# App
-streamlit
+# NLP
+gensim==4.3.2
 
-# Optional utils
-joblib
+# Streamlit app
+streamlit==1.39.0
+
+# Utilities
+joblib==1.4.2
+scipy==1.13.1
+
 
 
 
