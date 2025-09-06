@@ -7,15 +7,14 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.ensemble import RandomForestClassifier
-from scipy.sparse import hstack
+import os, re
 
 try:
     import streamlit as st
 except ImportError:
     st = None
 
-import gensim.downloader as api
-import re, os
+from sentence_transformers import SentenceTransformer
 
 # ==============================
 # 🔧 CONFIG
@@ -24,11 +23,10 @@ RUN_MODE = "streamlit"   # "kaggle" for testing, "streamlit" for deployment
 DATA_PATH = "synthetic_claims_uae_multi_icd.csv"
 MODEL_PATH = "er_claim_model_rf.joblib"
 ENCODERS_PATH = "er_encoders_rf.joblib"
-EMBEDDING_NAME = "glove-wiki-gigaword-100"  # smaller & faster for Kaggle
+EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"  # light, ~22MB
 
 CLAIM_STATUS_MAP = {"Approved": 0, "Rejected": 1}
 CLASS_LABELS = ["Approved", "Rejected"]
-
 
 # ==============================
 # UTILS
@@ -40,27 +38,16 @@ def safe_transform(le, value):
     else:
         return le.transform([le.classes_[0]])[0]
 
-
 def preprocess_text(text):
-    """Basic text cleaning for embeddings."""
-    text = text.lower()
+    """Clean text minimally before embedding."""
+    text = str(text).lower()
     text = re.sub(r"[^a-z0-9\s]", " ", text)
-    return text.split()
-
-
-def text_to_embedding_vector(text, embedding_model, embedding_dim):
-    """Convert text to average embedding vector."""
-    tokens = preprocess_text(text)
-    vectors = [embedding_model[w] for w in tokens if w in embedding_model]
-    if len(vectors) == 0:
-        return np.zeros(embedding_dim)
-    return np.mean(vectors, axis=0)
-
+    return text.strip()
 
 # ==============================
 # LOAD + PREPROCESS
 # ==============================
-def load_and_preprocess_data(embedding_model, embedding_dim):
+def load_and_preprocess_data(embedding_model):
     df = pd.read_csv(DATA_PATH)
     df.columns = [col.strip().replace(" ", "_") for col in df.columns]
     print(f"✅ Data loaded: {df.shape}")
@@ -86,10 +73,8 @@ def load_and_preprocess_data(embedding_model, embedding_dim):
         encoders[col] = le
 
     # Convert text → embeddings
-    X_text = np.vstack([
-        text_to_embedding_vector(txt, embedding_model, embedding_dim)
-        for txt in df_cleaned["combined_text"]
-    ])
+    texts = [preprocess_text(t) for t in df_cleaned["combined_text"]]
+    X_text = embedding_model.encode(texts, show_progress_bar=True)
 
     # Target
     y_encoded = df_cleaned[target].map(CLAIM_STATUS_MAP).astype(int)
@@ -102,16 +87,14 @@ def load_and_preprocess_data(embedding_model, embedding_dim):
 
     return X_combined, y_encoded, encoders
 
-
 # ==============================
 # TRAINING
 # ==============================
 def train_and_save_model():
-    print(f"📥 Loading pre-trained embeddings: {EMBEDDING_NAME}")
-    embedding_model = api.load(EMBEDDING_NAME)
-    embedding_dim = embedding_model.vector_size
+    print(f"📥 Loading pre-trained embeddings: {EMBEDDING_MODEL_NAME}")
+    embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 
-    X, y, encoders = load_and_preprocess_data(embedding_model, embedding_dim)
+    X, y, encoders = load_and_preprocess_data(embedding_model)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
@@ -140,13 +123,12 @@ def train_and_save_model():
     print(report)
     print("Confusion Matrix:\n", cm)
 
-    return model, encoders, embedding_model, embedding_dim
-
+    return model, encoders, embedding_model
 
 # ==============================
 # PREDICTION
 # ==============================
-def predict_claim(input_data, embedding_model, embedding_dim):
+def predict_claim(input_data, embedding_model):
     if not os.path.exists(MODEL_PATH):
         print("⚠️ Model not found, training a new one...")
         train_and_save_model()
@@ -165,7 +147,8 @@ def predict_claim(input_data, embedding_model, embedding_dim):
 
     # Text → embeddings
     combined_text_input = str(input_data["ICD_Code"]) + " " + str(input_data["Clinical_Notes"])
-    X_text = text_to_embedding_vector(combined_text_input, embedding_model, embedding_dim).reshape(1, -1)
+    combined_text_input = preprocess_text(combined_text_input)
+    X_text = embedding_model.encode([combined_text_input])
 
     # Structured
     X_structured = df_input[numerical_features + categorical_features].values
@@ -175,12 +158,11 @@ def predict_claim(input_data, embedding_model, embedding_dim):
     prediction = model.predict(X_input)[0]
     return CLASS_LABELS[prediction]
 
-
 # ==============================
 # 🚀 MAIN EXECUTION (Kaggle)
 # ==============================
 if RUN_MODE == "kaggle":
-    model, encoders, embedding_model, embedding_dim = train_and_save_model()
+    model, encoders, embedding_model = train_and_save_model()
 
     sample_input = {
         "Age": 45.5, "Systolic_BP": 120.2, "Diastolic_BP": 79.8,
@@ -190,28 +172,24 @@ if RUN_MODE == "kaggle":
         "ICD_Code": "I10 E11 Z79",
         "Clinical_Notes": "Patient reported chest pain and high blood pressure."
     }
-    pred = predict_claim(sample_input, embedding_model, embedding_dim)
+    pred = predict_claim(sample_input, embedding_model)
     print(f"🔮 Prediction for sample input: {pred}")
-
 
 # ==============================
 # 🌐 STREAMLIT APP
 # ==============================
 elif RUN_MODE == "streamlit":
-    st.title("🏥 UAE Claim Approval Prediction (Random Forest + Pretrained Embeddings)")
+    st.title("🏥 UAE Claim Approval Prediction (Random Forest + SentenceTransformers)")
 
     # ✅ Cache embeddings so they are loaded only once
     @st.cache_resource
     def load_embeddings():
-        embedding_model = api.load(EMBEDDING_NAME)
-        embedding_dim = embedding_model.vector_size
-        return embedding_model, embedding_dim
+        return SentenceTransformer(EMBEDDING_MODEL_NAME)
 
-    # Load cached embeddings
-    embedding_model, embedding_dim = load_embeddings()
+    embedding_model = load_embeddings()
 
     if st.button("Train/Reload Model"):
-        model, encoders, _, _ = train_and_save_model()
+        model, encoders, _ = train_and_save_model()
         st.success("Model retrained and reloaded!")
 
     st.header("Enter Claim Details")
@@ -245,5 +223,5 @@ elif RUN_MODE == "streamlit":
             "Insurance_Company": company, "Insurance_Plan": plan,
             "ICD_Code": icd_text, "Clinical_Notes": notes
         }
-        pred = predict_claim(input_data, embedding_model, embedding_dim)
+        pred = predict_claim(input_data, embedding_model)
         st.subheader(f"Prediction: {pred}")
