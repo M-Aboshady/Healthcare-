@@ -1,20 +1,21 @@
 # Core ML + Data
-pandas==2.2.2
-numpy==1.26.4
-scikit-learn==1.5.1
-xgboost==2.0.3
+pandas
+numpy
+scikit-learn
+xgboost
 
 # NLP
-sentence-transformers==2.7.0
-torch==2.2.2
-transformers==4.41.2
+
+
+
 
 # Streamlit app
-streamlit==1.39.0
+streamlit
 
 # Utilities
-joblib==1.4.2
-scipy==1.13.1
+joblib
+scipy
+
 
 
 
