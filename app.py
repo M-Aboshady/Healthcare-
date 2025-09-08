@@ -187,7 +187,7 @@ if RUN_MODE == "kaggle":
 # 🌐 STREAMLIT APP (only runs if deployed)
 # ==============================
 elif RUN_MODE == "streamlit":
-    st.title("🏥 UAE Claim Approval Prediction (Random Forest + TF-IDF)")
+    st.title("🏥 Emergency Claim Approval Prediction (patient follow optimization)")
 
     if st.button("Train/Reload Model"):
         train_and_save_model()
@@ -226,3 +226,4 @@ elif RUN_MODE == "streamlit":
         }
         pred = predict_claim(input_data)
         st.subheader(f"Prediction: {pred}")
+
