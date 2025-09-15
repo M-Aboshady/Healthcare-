@@ -5,16 +5,35 @@ st.title("🧑‍⚕️ Weekly Patient Journey Suggestions (Lab ↔ Pharmacy)")
 
 # Sidebar settings
 st.sidebar.header("⚙️ Settings")
-LAB_THRESHOLD = st.sidebar.number_input("Lab crowding threshold (minutes)", min_value=1, max_value=60, value=5, step=1)
-PHARM_THRESHOLD = st.sidebar.number_input("Pharmacy crowding threshold (minutes)", min_value=1, max_value=60, value=10, step=1)
+LAB_THRESHOLD = st.sidebar.number_input(
+    "Lab crowding threshold (minutes)", min_value=1, max_value=60, value=5, step=1
+)
+PHARM_THRESHOLD = st.sidebar.number_input(
+    "Pharmacy crowding threshold (minutes)", min_value=1, max_value=60, value=10, step=1
+)
 
-# 🔥 Flexible aggregation: staff can choose any number of minutes
-TIME_WINDOW = st.sidebar.number_input("Aggregation window (minutes)", min_value=15, max_value=1440, value=30, step=15,
-                                      help="Examples: 30 = half hour, 60 = 1 hour, 180 = 3 hours, 1440 = full day")
+# 🔥 Flexible aggregation
+TIME_WINDOW = st.sidebar.number_input(
+    "Aggregation window (minutes)",
+    min_value=15,
+    max_value=1440,
+    value=30,
+    step=15,
+    help="Examples: 30 = half hour, 60 = 1 hour, 180 = 3 hours, 1440 = full day",
+)
+
+# NEW: Weekday filter
+WEEKDAYS = ["All Days", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+selected_day = st.sidebar.selectbox("Filter by weekday", WEEKDAYS)
+
+# NEW: Start hour filter
+selected_hour = st.sidebar.slider(
+    "Start hour of the day (0–23)", min_value=0, max_value=23, value=0, step=1
+)
 
 # Upload files
-lab_file = st.file_uploader("optimization/lab.csv", type=["csv"])
-pharm_file = st.file_uploader("optimization/pharm.csv", type=["csv"])
+lab_file = st.file_uploader("Upload Lab Data CSV", type=["csv"])
+pharm_file = st.file_uploader("Upload Pharmacy Data CSV", type=["csv"])
 
 if lab_file and pharm_file:
     # Load CSVs
@@ -29,10 +48,20 @@ if lab_file and pharm_file:
     def create_slot(df, time_col, window):
         df["day"] = df[time_col].dt.day_name()
         df["slot"] = (df[time_col].dt.hour * 60 + df[time_col].dt.minute) // window
+        df["hour"] = df[time_col].dt.hour
         return df
 
     lab = create_slot(lab, "time", TIME_WINDOW)
     pharm = create_slot(pharm, "time", TIME_WINDOW)
+
+    # Apply weekday filter (if not "All Days")
+    if selected_day != "All Days":
+        lab = lab[lab["day"] == selected_day]
+        pharm = pharm[pharm["day"] == selected_day]
+
+    # Apply start hour filter
+    lab = lab[lab["hour"] >= selected_hour]
+    pharm = pharm[pharm["hour"] >= selected_hour]
 
     # Aggregate avg waiting times per day + slot
     lab_agg = lab.groupby(["day", "slot"])["waiting_time"].mean().reset_index(name="lab_wait")
@@ -61,11 +90,17 @@ if lab_file and pharm_file:
 
         # Decision rules
         if pharm_wait > PHARM_THRESHOLD and lab_wait <= LAB_THRESHOLD:
-            suggestions.append(f"{slot_label} → Pharmacy crowded ({pharm_wait:.1f} min). Lab free ({lab_wait:.1f} min). Suggest: shift patients to Lab.")
+            suggestions.append(
+                f"{slot_label} → Pharmacy crowded ({pharm_wait:.1f} min). Lab free ({lab_wait:.1f} min). Suggest: shift patients to Lab."
+            )
         elif lab_wait > LAB_THRESHOLD and pharm_wait <= PHARM_THRESHOLD:
-            suggestions.append(f"{slot_label} → Lab crowded ({lab_wait:.1f} min). Pharmacy free ({pharm_wait:.1f} min). Suggest: shift patients to Pharmacy.")
+            suggestions.append(
+                f"{slot_label} → Lab crowded ({lab_wait:.1f} min). Pharmacy free ({pharm_wait:.1f} min). Suggest: shift patients to Pharmacy."
+            )
         elif pharm_wait > PHARM_THRESHOLD and lab_wait > LAB_THRESHOLD:
-            suggestions.append(f"{slot_label} → Both Lab ({lab_wait:.1f} min) and Pharmacy ({pharm_wait:.1f} min) crowded. Suggest: add staff or reschedule.")
+            suggestions.append(
+                f"{slot_label} → Both Lab ({lab_wait:.1f} min) and Pharmacy ({pharm_wait:.1f} min) crowded. Suggest: add staff or reschedule."
+            )
         else:
             continue
 
@@ -73,5 +108,4 @@ if lab_file and pharm_file:
         for s in suggestions:
             st.write("✅ " + s)
     else:
-        st.info("No critical crowding detected this week. ✅")
-
+        st.info("No critical crowding detected for this selection. ✅")
