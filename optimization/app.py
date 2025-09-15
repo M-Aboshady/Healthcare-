@@ -14,7 +14,7 @@ TIME_WINDOW = st.sidebar.number_input("Aggregation window (minutes)", min_value=
 
 # Upload files
 lab_file = st.file_uploader("optimization/lab.csv", type=["csv"])
-pharm_file = st.file_uploader("Upload Pharmacy Data CSV", type=["csv"])
+pharm_file = st.file_uploader("optimization/pharm.csv", type=["csv"])
 
 if lab_file and pharm_file:
     # Load CSVs
