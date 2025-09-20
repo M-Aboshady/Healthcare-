@@ -35,18 +35,6 @@ selected_hour = st.sidebar.slider(
 lab_file = st.file_uploader("Upload Lab Data CSV", type=["csv"])
 pharm_file = st.file_uploader("Upload Pharmacy Data CSV", type=["csv"])
 
-# Convert waiting_time to minutes if it looks like a time string
-def convert_waiting_time(df):
-    if df["waiting_time"].dtype == object:  # not numeric
-        try:
-            # Try parsing as timedelta
-            df["waiting_time"] = pd.to_timedelta(df["waiting_time"]).dt.total_seconds() / 60
-        except:
-            # If already numeric-like but string, force convert
-            df["waiting_time"] = pd.to_numeric(df["waiting_time"], errors="coerce")
-    return df
-
-
 
 
 if lab_file and pharm_file:
@@ -54,9 +42,6 @@ if lab_file and pharm_file:
     lab = pd.read_csv(lab_file)
     pharm = pd.read_csv(pharm_file)
 
-    lab = convert_waiting_time(lab)
-    pharm = convert_waiting_time(pharm)
-    
 
     # Ensure datetime column exists (adjust column name if needed)
     lab["time"] = pd.to_datetime(lab["time"])
@@ -71,6 +56,21 @@ if lab_file and pharm_file:
 
     lab = create_slot(lab, "time", TIME_WINDOW)
     pharm = create_slot(pharm, "time", TIME_WINDOW)
+
+    # Convert waiting_time to minutes if it looks like a time string
+def convert_waiting_time(df):
+    if df["waiting_time"].dtype == object:  # not numeric
+        try:
+            # Try parsing as timedelta
+            df["waiting_time"] = pd.to_timedelta(df["waiting_time"]).dt.total_seconds() / 60
+        except:
+            # If already numeric-like but string, force convert
+            df["waiting_time"] = pd.to_numeric(df["waiting_time"], errors="coerce")
+    return df
+
+lab = convert_waiting_time(lab)
+pharm = convert_waiting_time(pharm)
+
 
     # Apply weekday filter (if not "All Days")
     if selected_day != "All Days":
