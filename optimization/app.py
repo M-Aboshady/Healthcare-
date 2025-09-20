@@ -35,44 +35,35 @@ selected_hour = st.sidebar.slider(
 lab_file = st.file_uploader("Upload Lab Data CSV", type=["csv"])
 pharm_file = st.file_uploader("Upload Pharmacy Data CSV", type=["csv"])
 
-
-
 if lab_file and pharm_file:
     # Load CSVs
     lab = pd.read_csv(lab_file)
     pharm = pd.read_csv(pharm_file)
 
-
-    # Ensure datetime column exists (adjust column name if needed)
-    lab["time"] = pd.to_datetime(lab["time"])
-    pharm["time"] = pd.to_datetime(pharm["time"])
+    # Correct: Use the 'Date' column to create the day name
+    lab["Date"] = pd.to_datetime(lab["Date"])
+    pharm["Date"] = pd.to_datetime(pharm["Date"])
 
     # Create day + time slots
-    def create_slot(df, time_col, window):
-        df["day"] = df[time_col].dt.day_name()
-        df["slot"] = (df[time_col].dt.hour * 60 + df[time_col].dt.minute) // window
-        df["hour"] = df[time_col].dt.hour
+    def create_slot(df, date_col, time_col, window):
+        df["day"] = df[date_col].dt.day_name()
+        df["hour"] = pd.to_datetime(df[time_col]).dt.hour
+        df["slot"] = (df["hour"] * 60 + pd.to_datetime(df[time_col]).dt.minute) // window
         return df
 
-    lab = create_slot(lab, "time", TIME_WINDOW)
-    pharm = create_slot(pharm, "time", TIME_WINDOW)
+    lab = create_slot(lab, "Date", "time", TIME_WINDOW)
+    pharm = create_slot(pharm, "Date", "time", TIME_WINDOW)
 
     def convert_waiting_time(df):
         if df["waiting_time"].dtype == object:
             try:
-                
                 df["waiting_time"] = pd.to_timedelta(df["waiting_time"]).dt.total_seconds() / 60
-            
             except:
-                
                 df["waiting_time"] = pd.to_numeric(df["waiting_time"], errors="coerce")
         return df
-
-        
+    
     lab = convert_waiting_time(lab)
     pharm = convert_waiting_time(pharm)
-
-
 
     # Apply weekday filter (if not "All Days")
     if selected_day != "All Days":
