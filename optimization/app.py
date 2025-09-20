@@ -46,14 +46,16 @@ def convert_waiting_time(df):
             df["waiting_time"] = pd.to_numeric(df["waiting_time"], errors="coerce")
     return df
 
-lab = convert_waiting_time(lab)
-pharm = convert_waiting_time(pharm)
+
 
 
 if lab_file and pharm_file:
     # Load CSVs
     lab = pd.read_csv(lab_file)
     pharm = pd.read_csv(pharm_file)
+
+    lab = convert_waiting_time(lab)
+    pharm = convert_waiting_time(pharm)
     
 
     # Ensure datetime column exists (adjust column name if needed)
