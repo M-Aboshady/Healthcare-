@@ -6,10 +6,10 @@ st.title("🧑‍⚕️ Weekly Patient Journey Suggestions (Lab ↔ Pharmacy)")
 # Sidebar settings
 st.sidebar.header("⚙️ Settings")
 LAB_THRESHOLD = st.sidebar.number_input(
-    "Lab crowding threshold (minutes)", min_value=1, max_value=60, value=5, step=1
+    "Lab crowding threshold (tokens)", min_value=1, max_value=100, value=10, step=1
 )
 PHARM_THRESHOLD = st.sidebar.number_input(
-    "Pharmacy crowding threshold (minutes)", min_value=1, max_value=60, value=10, step=1
+    "Pharmacy crowding threshold (tokens)", min_value=1, max_value=100, value=20, step=1
 )
 
 # 🔥 Flexible aggregation
@@ -54,6 +54,7 @@ if lab_file and pharm_file:
     lab = create_slot(lab, "Date", "time", TIME_WINDOW)
     pharm = create_slot(pharm, "Date", "time", TIME_WINDOW)
 
+    # Convert waiting_time
     def convert_waiting_time(df):
         if df["waiting_time"].dtype == object:
             try:
@@ -75,8 +76,8 @@ if lab_file and pharm_file:
     pharm = pharm[pharm["hour"] >= selected_hour]
 
     # Aggregate avg waiting times per day + slot
-    lab_agg = lab.groupby(["day", "slot"])["waiting_time"].mean().reset_index(name="lab_wait")
-    pharm_agg = pharm.groupby(["day", "slot"])["waiting_time"].mean().reset_index(name="pharm_wait")
+    lab_agg = lab.groupby(["day", "slot"])["Token No"].count().reset_index(name="lab_count")
+    pharm_agg = pharm.groupby(["day", "slot"])["Token No"].count().reset_index(name="pharm_count")
 
     # Merge datasets
     merged = pd.merge(lab_agg, pharm_agg, on=["day", "slot"], how="outer").fillna(0)
@@ -86,7 +87,7 @@ if lab_file and pharm_file:
 
     for _, row in merged.iterrows():
         day, slot = row["day"], row["slot"]
-        lab_wait, pharm_wait = row["lab_wait"], row["pharm_wait"]
+        lab_count, pharm_count = row["lab_count"], row["pharm_count"]
 
         # Convert slot back to readable time
         start_minutes = slot * TIME_WINDOW
@@ -100,17 +101,17 @@ if lab_file and pharm_file:
             slot_label = f"{day} {start_hour:02d}:{start_min:02d}–{end_hour:02d}:{end_min:02d}"
 
         # Decision rules
-        if pharm_wait > PHARM_THRESHOLD and lab_wait <= LAB_THRESHOLD:
+        if pharm_count > PHARM_THRESHOLD and lab_count <= LAB_THRESHOLD:
             suggestions.append(
-                f"{slot_label} → Pharmacy crowded ({pharm_wait:.1f} min). Lab free ({lab_wait:.1f} min). Suggest: shift patients to Lab."
+                f"{slot_label} → Pharmacy crowded ({pharm_count:.0f} tokens). Lab free ({lab_count:.0f} tokens). Suggest: shift patients to Lab."
             )
-        elif lab_wait > LAB_THRESHOLD and pharm_wait <= PHARM_THRESHOLD:
+        elif lab_count > LAB_THRESHOLD and pharm_count <= PHARM_THRESHOLD:
             suggestions.append(
-                f"{slot_label} → Lab crowded ({lab_wait:.1f} min). Pharmacy free ({pharm_wait:.1f} min). Suggest: shift patients to Pharmacy."
+                f"{slot_label} → Lab crowded ({lab_count:.0f} tokens). Pharmacy free ({pharm_count:.0f} tokens). Suggest: shift patients to Pharmacy."
             )
-        elif pharm_wait > PHARM_THRESHOLD and lab_wait > LAB_THRESHOLD:
+        elif pharm_count > PHARM_THRESHOLD and lab_count > LAB_THRESHOLD:
             suggestions.append(
-                f"{slot_label} → Both Lab ({lab_wait:.1f} min) and Pharmacy ({pharm_wait:.1f} min) crowded. Suggest: add staff or reschedule."
+                f"{slot_label} → Both Lab ({lab_count:.0f} tokens) and Pharmacy ({pharm_count:.0f} tokens) crowded. Suggest: add staff or reschedule."
             )
         else:
             continue
