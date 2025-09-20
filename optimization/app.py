@@ -54,18 +54,6 @@ if lab_file and pharm_file:
     lab = create_slot(lab, "Date", "time", TIME_WINDOW)
     pharm = create_slot(pharm, "Date", "time", TIME_WINDOW)
 
-    # Convert waiting_time
-    def convert_waiting_time(df):
-        if df["waiting_time"].dtype == object:
-            try:
-                df["waiting_time"] = pd.to_timedelta(df["waiting_time"]).dt.total_seconds() / 60
-            except:
-                df["waiting_time"] = pd.to_numeric(df["waiting_time"], errors="coerce")
-        return df
-    
-    lab = convert_waiting_time(lab)
-    pharm = convert_waiting_time(pharm)
-
     # Apply weekday filter (if not "All Days")
     if selected_day != "All Days":
         lab = lab[lab["day"] == selected_day]
