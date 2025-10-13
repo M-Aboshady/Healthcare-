@@ -1,6 +1,7 @@
+
+scikit-learn
+torch
+transformers
+sentence-transformers
 streamlit
 pandas 
-transformers
-torch
-scikit-learn
-sentence_transformers
