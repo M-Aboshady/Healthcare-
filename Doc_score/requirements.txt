@@ -1,1 +1,6 @@
+streamlit
+pandas 
+transformers
+torch
+sklearn.metrics
 
